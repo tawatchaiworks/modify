@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User } from 'firebase/auth';
 import {
   FileSpreadsheet,
@@ -32,6 +32,7 @@ import {
   appendModifyJobToSheet,
   updateModifyJobInSheet,
   deleteModifyJobFromSheet,
+  syncAllJobsToSheet,
   setupSheetHeaders,
   saveSpreadsheetInfo,
   getSpreadsheetMetadata,
@@ -149,6 +150,29 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
+  // Auto-sync states & refs
+  const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState(true);
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const [lastAutoSyncTime, setLastAutoSyncTime] = useState<string | null>(null);
+
+  const jobsRef = useRef<ModifyJobItem[]>(jobs);
+  const spreadsheetRef = useRef<GoogleSpreadsheetInfo | null>(spreadsheet);
+  const userRef = useRef<User | null>(user);
+  const isAutoSyncingRef = useRef(false);
+  const lastSyncedHashRef = useRef<string>('');
+
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+
+  useEffect(() => {
+    spreadsheetRef.current = spreadsheet;
+  }, [spreadsheet]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<ModifyJobItem | null>(null);
@@ -218,9 +242,15 @@ export default function App() {
         const sheetJobs = await fetchModifyJobsFromSheet(targetSheet.id, targetSheet.sheetName);
         if (sheetJobs.length > 0) {
           setJobs(sheetJobs);
+          jobsRef.current = sheetJobs;
+          lastSyncedHashRef.current = JSON.stringify(sheetJobs);
+          const nowStr = new Date().toLocaleTimeString('th-TH');
+          setLastAutoSyncTime(nowStr);
           showToast(`ซิงค์ข้อมูลจาก Google Sheet "${targetSheet.name}" (${sheetJobs.length} รายการ) สำเร็จ!`, 'success');
         } else {
           setJobs([]);
+          jobsRef.current = [];
+          lastSyncedHashRef.current = JSON.stringify([]);
           showToast(`เชื่อมต่อกับ Google Sheet "${targetSheet.name}" เรียบร้อย (ไม่มีแถวข้อมูล)`, 'info');
         }
       }
@@ -237,6 +267,60 @@ export default function App() {
       loadSheetData();
     }
   }, [user, token]);
+
+  // 3. Auto-update to Google Sheet (ตาราง modify) every 3 seconds
+  useEffect(() => {
+    if (!isAutoSyncEnabled) return;
+
+    const intervalId = setInterval(async () => {
+      const currentUser = userRef.current;
+      const currentJobs = jobsRef.current;
+      const currentSpreadsheet = spreadsheetRef.current;
+
+      // Only auto-sync if user is signed in and not currently syncing
+      if (!currentUser || isAutoSyncingRef.current) {
+        return;
+      }
+
+      let targetSheet = currentSpreadsheet;
+      if (!targetSheet) {
+        targetSheet = await findExistingSpreadsheet();
+        if (targetSheet) {
+          setSpreadsheet(targetSheet);
+          spreadsheetRef.current = targetSheet;
+        }
+      }
+
+      if (!targetSheet) return;
+
+      const currentHash = JSON.stringify(currentJobs);
+
+      // Trigger automatic update if local data differs from last synced hash
+      if (lastSyncedHashRef.current !== '' && lastSyncedHashRef.current !== currentHash) {
+        try {
+          isAutoSyncingRef.current = true;
+          setIsAutoSyncing(true);
+
+          const sheetName = targetSheet.sheetName || 'modify';
+          const updatedJobs = await syncAllJobsToSheet(targetSheet.id, currentJobs, sheetName);
+
+          lastSyncedHashRef.current = JSON.stringify(updatedJobs);
+          jobsRef.current = updatedJobs;
+          setJobs(updatedJobs);
+
+          const nowStr = new Date().toLocaleTimeString('th-TH');
+          setLastAutoSyncTime(nowStr);
+        } catch (err: any) {
+          console.warn('Auto-sync to Google Sheet error (retrying in 3s):', err?.message || err);
+        } finally {
+          isAutoSyncingRef.current = false;
+          setIsAutoSyncing(false);
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [isAutoSyncEnabled]);
 
   // Handle Google Sign-in
   const handleLogin = async () => {
@@ -420,6 +504,56 @@ export default function App() {
     }
   };
 
+  // Bulk sync/push all current jobs to Google Sheet
+  const handleSyncAllToSheet = async () => {
+    if (!user) {
+      await handleLogin();
+      return;
+    }
+    let targetSheet = spreadsheet;
+    if (!targetSheet) {
+      const found = await findExistingSpreadsheet();
+      if (found) {
+        targetSheet = found;
+        setSpreadsheet(found);
+      }
+    }
+    if (!targetSheet) {
+      showToast('กรุณาเลือกหรือเชื่อมต่อ Google Sheet ก่อน', 'error');
+      setIsSheetSettingsOpen(true);
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'ยืนยันการอัปเดตข้อมูลทั้งหมดลง Google Sheets',
+      message: `คุณต้องการบันทึกและอัปเดตข้อมูลคำขอทั้ง ${jobs.length} รายการลงใน Google Sheet "${targetSheet.name}" หรือไม่?`,
+      itemDetails: [
+        { label: 'Google Sheet', value: targetSheet.name },
+        { label: 'Sheet ID', value: targetSheet.id },
+        { label: 'จำนวนรายการทั้งหมด', value: `${jobs.length} รายการ` },
+        { label: 'Tab ในชีต', value: targetSheet.sheetName || 'modify' },
+      ],
+      confirmText: 'อัปเดตลง Google Sheets',
+      isDestructive: false,
+      onConfirm: async () => {
+        setIsLoading(true);
+        try {
+          const updatedJobs = await syncAllJobsToSheet(targetSheet.id, jobs, targetSheet.sheetName);
+          setJobs(updatedJobs);
+          showToast(`อัปเดตข้อมูลทั้ง ${jobs.length} รายการลง Google Sheet "${targetSheet.name}" สำเร็จ!`, 'success');
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+          setIsSheetSettingsOpen(false);
+        } catch (err: any) {
+          console.error('Error syncing all to sheet:', err);
+          showToast(err.message || 'อัปเดตข้อมูลลง Google Sheet ไม่สำเร็จ', 'error');
+        } finally {
+          setIsLoading(false);
+        }
+      },
+    });
+  };
+
   // Filter jobs based on top stats filter
   const filteredJobs = jobs.filter((job) => {
     if (selectedFilter === 'ALL') return true;
@@ -470,6 +604,18 @@ export default function App() {
         spreadsheet={spreadsheet}
         viewMode={viewMode}
         isLoading={isLoading}
+        isAutoSyncEnabled={isAutoSyncEnabled}
+        isAutoSyncing={isAutoSyncing}
+        lastAutoSyncTime={lastAutoSyncTime}
+        onToggleAutoSync={() => {
+          setIsAutoSyncEnabled(!isAutoSyncEnabled);
+          showToast(
+            !isAutoSyncEnabled
+              ? 'เปิดการ Auto Sync ข้อมูลลง Google Sheet ทุก 3 วินาที'
+              : 'หยุดการ Auto Sync ชั่วคราว',
+            'info'
+          );
+        }}
         onViewModeChange={setViewMode}
         onOpenNewForm={() => {
           setEditingJob(null);
@@ -477,6 +623,7 @@ export default function App() {
         }}
         onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
         onRefresh={loadSheetData}
+        onSyncAllToSheet={handleSyncAllToSheet}
         onLogin={handleLogin}
         onLogout={handleLogout}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
@@ -738,6 +885,7 @@ export default function App() {
         onCreateNewSheet={handleCreateNewSheet}
         onConnectExistingSheet={handleConnectExistingSheet}
         onReformatHeaders={handleReformatHeaders}
+        onSyncAllToSheet={handleSyncAllToSheet}
         onClose={() => setIsSheetSettingsOpen(false)}
       />
 

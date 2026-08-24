@@ -12,6 +12,7 @@ import {
   Users,
   ShieldCheck,
   Share2,
+  CloudUpload,
 } from 'lucide-react';
 import { GoogleSpreadsheetInfo } from '../types';
 
@@ -22,6 +23,7 @@ interface SheetSettingsModalProps {
   onCreateNewSheet: (title: string) => Promise<void>;
   onConnectExistingSheet: (sheetId: string) => Promise<void>;
   onReformatHeaders: () => Promise<void>;
+  onSyncAllToSheet?: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -32,6 +34,7 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
   onCreateNewSheet,
   onConnectExistingSheet,
   onReformatHeaders,
+  onSyncAllToSheet,
   onClose,
 }) => {
   const [newTitle, setNewTitle] = useState('ตาราง modify');
@@ -173,6 +176,16 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
                       <span className="text-slate-500 font-medium">Tab:</span>
                       <span className="font-semibold text-slate-800">{spreadsheet.sheetName}</span>
                     </div>
+                    <div className="flex items-center justify-between pt-1 text-emerald-800 font-semibold bg-emerald-50/70 px-2.5 py-1.5 rounded-lg border border-emerald-200/60">
+                      <span className="flex items-center gap-1.5 text-xs">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        Auto Sync ทุก 3 วินาที:
+                      </span>
+                      <span className="text-xs text-emerald-700 font-bold">เปิดใช้งาน (Active)</span>
+                    </div>
                   </div>
 
                   {/* Quick Share Link Box */}
@@ -203,21 +216,33 @@ export const SheetSettingsModal: React.FC<SheetSettingsModalProps> = ({
                   </div>
 
                   <div className="flex flex-col gap-2 pt-1">
+                    {onSyncAllToSheet && (
+                      <button
+                        type="button"
+                        onClick={onSyncAllToSheet}
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <CloudUpload className="w-4 h-4" />
+                        <span>อัปเดต / ซิงค์ข้อมูลทั้งหมดลง Google Sheet ตอนนี้</span>
+                      </button>
+                    )}
+
                     <a
                       href={spreadsheet.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-xs transition-all"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl font-bold shadow-2xs transition-all"
                     >
                       <span>เปิด Google Sheet ในแท็บใหม่</span>
-                      <ExternalLink className="w-4 h-4" />
+                      <ExternalLink className="w-4 h-4 text-slate-500" />
                     </a>
 
                     <button
                       type="button"
                       onClick={onReformatHeaders}
                       disabled={isLoading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-all disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-all disabled:opacity-50 cursor-pointer"
                     >
                       <Sparkles className="w-4 h-4 text-blue-600" />
                       <span>จัดรูปแบบหัวตาราง 16 คอลัมน์ (Format Headers)</span>

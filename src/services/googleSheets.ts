@@ -788,3 +788,67 @@ export const deleteModifyJobFromSheet = async (
 
   return true;
 };
+
+/**
+ * Synchronize and push all jobs to Google Sheet (Bulk update all rows)
+ */
+export const syncAllJobsToSheet = async (
+  spreadsheetId: string,
+  jobs: ModifyJobItem[],
+  sheetTitle = DEFAULT_SHEET_NAME
+): Promise<ModifyJobItem[]> => {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token available. Please sign in.');
+
+  // 1. Ensure sheet headers are properly initialized and formatted
+  await setupSheetHeaders(spreadsheetId, sheetTitle);
+
+  // 2. Prepare all row values
+  const rows = jobs.map((job) => itemToSheetRow(job));
+
+  // 3. Clear existing data rows (A2:V) first to prevent dangling deleted records
+  const clearRange = `${sheetTitle}!A2:V`;
+  await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  if (rows.length > 0) {
+    // 4. Write all rows starting at row 2
+    const writeRange = `${sheetTitle}!A2:V${1 + rows.length}`;
+    const updateRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(
+        writeRange
+      )}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          range: writeRange,
+          majorDimension: 'ROWS',
+          values: rows,
+        }),
+      }
+    );
+
+    if (!updateRes.ok) {
+      const err = await updateRes.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'Failed to update all rows in Google Sheet');
+    }
+  }
+
+  // 5. Return updated jobs with synchronized 1-based row numbers
+  return jobs.map((job, idx) => ({
+    ...job,
+    rowNumber: idx + 2,
+  }));
+};
