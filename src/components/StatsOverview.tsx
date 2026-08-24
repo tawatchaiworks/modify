@@ -7,6 +7,7 @@ import {
   Sparkles,
   ClipboardList,
   AlertCircle,
+  Printer,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
 
@@ -14,19 +15,21 @@ interface StatsOverviewProps {
   jobs: ModifyJobItem[];
   selectedFilter: string;
   onSelectFilter: (filter: string) => void;
+  onPrintStatusReport?: (status: string) => void;
 }
 
 export const StatsOverview: React.FC<StatsOverviewProps> = ({
   jobs,
   selectedFilter,
   onSelectFilter,
+  onPrintStatusReport,
 }) => {
   const total = jobs.length;
   const finished = jobs.filter((j) => j.finishStatus === 'FINISH').length;
   const inProgress = jobs.filter(
     (j) =>
       j.finishStatus === 'IN_PROGRESS' ||
-      (Boolean(j.engineerHandoverDate) && j.finishStatus !== 'FINISH' && j.finishStatus !== 'CANCELLED')
+      (Boolean(jobHandover(j)) && j.finishStatus !== 'FINISH' && j.finishStatus !== 'CANCELLED')
   ).length;
   const completedQc = jobs.filter((j) => j.inspectionResult === 'COMPLETE' || j.inspectionResult === 'PASS').length;
   const editQc = jobs.filter((j) => j.inspectionResult === 'EDIT' || j.inspectionResult === 'REJECT').length;
@@ -34,6 +37,10 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
     (j) => j.inspectionResult === 'WAITING' || j.inspectionResult === 'PENDING' || !j.inspectionResult
   ).length;
   const withEngineerDate = jobs.filter((j) => Boolean(j.engineerHandoverDate) && j.finishStatus !== 'FINISH').length;
+
+  function jobHandover(j: ModifyJobItem) {
+    return j.engineerHandoverDate;
+  }
 
   const statCards = [
     {
@@ -85,27 +92,46 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
         const Icon = stat.icon;
         const isActive = selectedFilter === stat.id;
         return (
-          <button
+          <div
             key={stat.id}
-            type="button"
             onClick={() => onSelectFilter(stat.id)}
-            className={`p-3.5 rounded-2xl border transition-all text-left bg-white shadow-2xs hover:shadow-xs cursor-pointer flex flex-col justify-between ${
+            className={`p-3.5 rounded-2xl border transition-all text-left bg-white shadow-2xs hover:shadow-xs cursor-pointer flex flex-col justify-between group relative ${
               isActive ? stat.activeColor : 'border-slate-200 hover:border-slate-300'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-600 line-clamp-1">{stat.title}</span>
-              <div className={`p-1.5 rounded-xl border ${stat.color}`}>
-                <Icon className="w-4 h-4" />
+              <span className="text-xs font-semibold text-slate-700 line-clamp-1">{stat.title}</span>
+              <div className="flex items-center gap-1">
+                {onPrintStatusReport && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPrintStatusReport(stat.id);
+                    }}
+                    title={`Print Preview ขนาด A4 รายงานสถานะ: ${stat.title}`}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div className={`p-1.5 rounded-xl border ${stat.color}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
               </div>
             </div>
-            <div className="mt-2.5">
-              <span className="text-2xl font-bold text-slate-900 tracking-tight">{stat.count}</span>
-              {stat.subtext && (
-                <span className="block text-[11px] text-slate-500 mt-0.5">{stat.subtext}</span>
-              )}
+            <div className="mt-2.5 flex items-baseline justify-between">
+              <div>
+                <span className="text-2xl font-bold text-slate-900 tracking-tight">{stat.count}</span>
+                {stat.subtext && (
+                  <span className="block text-[11px] text-slate-500 mt-0.5">{stat.subtext}</span>
+                )}
+              </div>
+              <span className="text-[10px] text-blue-600 font-medium group-hover:underline">
+                คลิกกรอง
+              </span>
             </div>
-          </button>
+          </div>
         );
       })}
     </div>

@@ -37,6 +37,7 @@ interface ModifyJobTableProps {
   onQuickStatus: (job: ModifyJobItem) => void;
   onStartWork?: (job: ModifyJobItem) => void;
   onViewTicket: (job: ModifyJobItem) => void;
+  onPrintStatusReport?: (status?: string) => void;
   onDelete: (job: ModifyJobItem) => void;
   onAddNew: () => void;
 }
@@ -48,6 +49,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
   onQuickStatus,
   onStartWork,
   onViewTicket,
+  onPrintStatusReport,
   onDelete,
   onAddNew,
 }) => {
@@ -61,17 +63,17 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       // Search matches
-      const query = searchTerm.toLowerCase();
+      const query = (searchTerm || '').toLowerCase();
       const matchSearch =
         !searchTerm ||
-        job.id.toLowerCase().includes(query) ||
-        (job.customer && job.customer.toLowerCase().includes(query)) ||
-        (job.saleSoNo && job.saleSoNo.toLowerCase().includes(query)) ||
-        (job.project && job.project.toLowerCase().includes(query)) ||
-        (job.requester && job.requester.toLowerCase().includes(query)) ||
-        (job.sale && job.sale.toLowerCase().includes(query)) ||
-        (job.modifyDetails && job.modifyDetails.toLowerCase().includes(query)) ||
-        (job.workDetails && job.workDetails.some((w) => w && w.toLowerCase().includes(query)));
+        (job.id && String(job.id).toLowerCase().includes(query)) ||
+        (job.customer && String(job.customer).toLowerCase().includes(query)) ||
+        (job.saleSoNo && String(job.saleSoNo).toLowerCase().includes(query)) ||
+        (job.project && String(job.project).toLowerCase().includes(query)) ||
+        (job.requester && String(job.requester).toLowerCase().includes(query)) ||
+        (job.sale && String(job.sale).toLowerCase().includes(query)) ||
+        (job.modifyDetails && String(job.modifyDetails).toLowerCase().includes(query)) ||
+        (job.workDetails && job.workDetails.some((w) => w && String(w).toLowerCase().includes(query)));
 
       // Status filter
       const matchStatus =
@@ -187,7 +189,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs bg-transparent font-semibold text-slate-800 outline-hidden"
+              className="text-xs bg-transparent font-semibold text-slate-800 outline-hidden cursor-pointer"
             >
               <option value="ALL">ทั้งหมด</option>
               <option value="PENDING">Pending (รอดำเนินการ)</option>
@@ -202,7 +204,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
             <select
               value={inspectionFilter}
               onChange={(e) => setInspectionFilter(e.target.value)}
-              className="text-xs bg-transparent font-semibold text-slate-800 outline-hidden"
+              className="text-xs bg-transparent font-semibold text-slate-800 outline-hidden cursor-pointer"
             >
               <option value="ALL">ทั้งหมด</option>
               <option value="COMPLETE">COMPLETE (ตรวจผ่าน)</option>
@@ -211,11 +213,24 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
             </select>
           </div>
 
+          {/* Print A4 Report Preview */}
+          {onPrintStatusReport && (
+            <button
+              type="button"
+              onClick={() => onPrintStatusReport(statusFilter !== 'ALL' ? statusFilter : inspectionFilter !== 'ALL' ? inspectionFilter : 'ALL')}
+              title="Print Preview ขนาด A4 ตามสถานะที่เลือก"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition-all cursor-pointer shadow-2xs"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>พิมพ์รายงาน A4</span>
+            </button>
+          )}
+
           <button
             onClick={handleExportCSV}
             disabled={jobs.length === 0}
             title="ส่งออกเป็น CSV"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export CSV</span>
@@ -258,157 +273,151 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
-                <th className="py-3 px-3">ผู้ส่งคำขอ / Sale</th>
-                <th className="py-3 px-3">รายละเอียด Modify & จำนวน</th>
-                <th className="py-3 px-3">ช่างผู้ทำ & กำหนดเสร็จ</th>
-                <th
-                  onClick={() => handleSort('shipmentDate')}
-                  className="py-3 px-3 cursor-pointer hover:bg-slate-800 transition-colors"
-                >
-                  <div className="flex items-center gap-1">
-                    <span>ส่งมอบ Engineer / Shipment</span>
-                    <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                  </div>
-                </th>
-                <th className="py-3 px-3 text-center">ผลการตรวจ</th>
-                <th className="py-3 px-3 text-center">สถานะ Finish</th>
-                <th className="py-3 px-4 text-right">การกระทำ</th>
+                <th className="py-3 px-3">Sale & ช่างผู้ทำ</th>
+                <th className="py-3 px-3 min-w-[180px]">รายละเอียดที่ให้ Modify</th>
+                <th className="py-3 px-2.5 text-center">จำนวน</th>
+                <th className="py-3 px-3">กำหนดการส่งมอบ (Timeline)</th>
+                <th className="py-3 px-3 text-center min-w-[110px]">ผลการตรวจ (QC)</th>
+                <th className="py-3 px-3 text-center min-w-[125px]">สถานะงาน</th>
+                <th className="py-3 px-4 text-right min-w-[150px]">จัดการ</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+            <tbody className="divide-y divide-slate-200">
               {filteredJobs.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="py-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <FileText className="w-8 h-8 text-slate-300" />
-                      <p className="text-sm font-semibold text-slate-600">
-                        {searchTerm ? 'ไม่พบรายการคำขอที่ตรงกับเงื่อนไขค้นหา' : 'ยังไม่มีรายการคำของาน Modify'}
-                      </p>
-                      <button
-                        onClick={onAddNew}
-                        className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                      >
-                        + สร้างคำขอ Modify รายการแรก
-                      </button>
-                    </div>
+                    <p className="text-sm font-medium">ไม่พบรายการคำของาน Modify ที่ตรงกับเงื่อนไข</p>
+                    <button
+                      onClick={onAddNew}
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-bold underline"
+                    >
+                      + เพิ่มรายการคำขอใหม่
+                    </button>
                   </td>
                 </tr>
               ) : (
                 filteredJobs.map((job, idx) => {
                   const isExpanded = expandedRow === job.id;
-                  const has10Lines = job.workDetails && job.workDetails.some((l) => l && l.trim());
+                  const isPainting = detectIsPaintingJob(job);
+                  const completedLines = (job.workDetails || []).filter((l) => l && l.trim()).length;
+                  const progress = getJobProgressDetails(job);
+                  const elapsedDays = calculateWorkingDaysElapsed(job.engineerHandoverDate);
 
                   return (
                     <React.Fragment key={job.id}>
-                      <tr className="hover:bg-slate-50/80 transition-colors group">
-                        {/* Index */}
-                        <td className="py-3.5 px-3.5 text-center text-slate-400 font-mono text-[11px]">
-                          {job.rowNumber ? `#${job.rowNumber}` : idx + 1}
+                      <tr className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                        {/* Row # */}
+                        <td className="py-3.5 px-3.5 text-center font-mono text-slate-400 text-[11px]">
+                          {idx + 1}
                         </td>
 
-                        {/* Job ID */}
+                        {/* Job ID & Type Badge */}
                         <td className="py-3.5 px-3.5">
-                          <button
-                            type="button"
-                            onClick={() => onViewTicket(job)}
-                            className="font-mono font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 text-left"
-                          >
-                            <span>{job.id}</span>
-                          </button>
-                          {job.project && (
-                            <span className="block text-[11px] text-slate-500 truncate max-w-[130px]" title={job.project}>
-                              {job.project}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Request Date / Time */}
-                        <td className="py-3.5 px-3">
-                          <span className="font-semibold text-slate-900 block">{formatDateDisplay(job.requestDate)}</span>
-                          <span className="text-[11px] text-slate-500 block">
-                            {job.requestTime ? `${job.requestTime} น.` : ''} ({job.requestMonth || '-'})
-                          </span>
-                        </td>
-
-                        {/* Customer & SO No */}
-                        <td className="py-3.5 px-3.5">
-                          <span className="font-bold text-slate-900 block truncate max-w-[170px]" title={job.customer}>
-                            {job.customer || '-'}
-                          </span>
-                          {job.saleSoNo && (
-                            <span className="text-[11px] font-mono text-slate-500 block">
-                              SO: {job.saleSoNo}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Requester & Sale */}
-                        <td className="py-3.5 px-3">
-                          <div className="truncate max-w-[120px]">
-                            <span className="text-slate-900 font-semibold block truncate">ผู้ขอ: {job.requester || '-'}</span>
-                            <span className="text-[11px] text-slate-500 block truncate">Sale: {job.sale || '-'}</span>
-                          </div>
-                        </td>
-
-                        {/* Modify Details & Quantity */}
-                        <td className="py-3.5 px-3">
-                          <div className="max-w-[190px]">
-                            <span className="text-slate-900 font-medium line-clamp-1" title={job.modifyDetails}>
-                              {job.modifyDetails || '-'}
-                            </span>
-                            <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded-md text-[10px] border border-blue-200">
-                                {job.quantity || '1'}
-                              </span>
-                              {(job.workType === 'PAINTING' || detectIsPaintingJob(job.modifyDetails)) && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md text-[9px] border border-purple-200">
-                                  <Palette className="w-2.5 h-2.5" />
-                                  <span>ทำสี</span>
+                          <div className="flex flex-col">
+                            <span className="font-mono font-bold text-blue-700 text-sm">{job.id}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {job.rowNumber && (
+                                <span className="text-[10px] text-slate-600 font-mono">
+                                  Row #{job.rowNumber}
                                 </span>
                               )}
-                              {has10Lines && (
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedRow(isExpanded ? null : job.id)}
-                                  className="text-[10px] text-slate-500 hover:text-blue-600 flex items-center gap-0.5 underline font-medium"
-                                >
-                                  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                  <span>10 บรรทัด</span>
-                                </button>
+                              {isPainting && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800">
+                                  🎨 ทำสี
+                                </span>
                               )}
                             </div>
                           </div>
                         </td>
 
-                        {/* Technician & Estimated Return */}
+                        {/* Request Date/Time & Requester */}
                         <td className="py-3.5 px-3">
-                          <div className="text-[11px]">
-                            <span className="font-semibold text-slate-900 block truncate max-w-[120px]" title={job.technician || 'ยังไม่ระบุ'}>
-                              {job.technician ? `👨‍🔧 ${job.technician}` : <span className="text-slate-400 font-normal">- ไม่ระบุช่าง -</span>}
+                          <div className="space-y-0.5">
+                            <span className="font-semibold text-slate-900 block">
+                              {formatDateDisplay(job.requestDate)}
                             </span>
-                            {job.estimatedReturnDate ? (
-                              <span className="text-amber-800 font-semibold block">
-                                ส่งคืน: {formatDateDisplay(job.estimatedReturnDate)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-[10px] block">- ยังไม่กำหนดวันเสร็จ -</span>
-                            )}
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                              {job.requestTime && <span>{job.requestTime} น.</span>}
+                              {job.requester && (
+                                <span className="text-slate-600 truncate max-w-[90px]" title={job.requester}>
+                                  • {job.requester}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
 
-                        {/* Handover / Start Date & Shipment */}
+                        {/* Customer & Project & Sale SO No */}
+                        <td className="py-3.5 px-3.5">
+                          <div className="space-y-0.5 max-w-[200px]">
+                            <span className="font-bold text-slate-900 block truncate text-xs" title={job.customer}>
+                              {job.customer || '-'}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {job.saleSoNo && (
+                                <span className="font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                                  SO: {job.saleSoNo}
+                                </span>
+                              )}
+                              {job.project && (
+                                <span className="text-[11px] text-slate-500 truncate max-w-[120px]" title={job.project}>
+                                  {job.project}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Sale & Technician */}
                         <td className="py-3.5 px-3">
-                          <div className="text-[11px] space-y-0.5">
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-slate-700">
+                              <span className="text-slate-400 text-[10px]">Sale: </span>
+                              <strong className="text-slate-900 font-medium">{job.sale || '-'}</strong>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-slate-400 text-[10px]">ช่าง: </span>
+                              <strong className="text-slate-900 font-bold">{job.technician || '-'}</strong>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Modify Details & 10 lines count */}
+                        <td className="py-3.5 px-3">
+                          <div className="max-w-[220px]">
+                            <p className="text-xs text-slate-800 line-clamp-2 leading-relaxed" title={job.modifyDetails}>
+                              {job.modifyDetails || '- ไม่มีรายละเอียดระบุ -'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRow(isExpanded ? null : job.id)}
+                              className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-800"
+                            >
+                              <Layers className="w-3 h-3" />
+                              <span>{completedLines}/10 รายการย่อย</span>
+                              {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Quantity */}
+                        <td className="py-3.5 px-2.5 text-center">
+                          <span className="font-bold text-slate-900 text-xs px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 inline-block">
+                            {job.quantity || 1}
+                          </span>
+                        </td>
+
+                        {/* Timeline */}
+                        <td className="py-3.5 px-3">
+                          <div className="space-y-1 text-xs min-w-[140px]">
                             {job.engineerHandoverDate ? (
-                              <div className="text-slate-700">
-                                <span className="text-slate-500">เริ่มงาน: </span>
-                                <strong className="text-blue-900 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                  {formatDateDisplay(job.engineerHandoverDate)}
-                                </strong>
-                                {job.finishStatus !== 'FINISH' && (
-                                  <span className="block text-[10px] text-amber-700 font-medium mt-0.5">
-                                    (ทำมาแล้ว {calculateWorkingDaysElapsed(job.engineerHandoverDate)} วัน)
+                              <div className="flex items-center gap-1.5 text-slate-800">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>เริ่ม: <strong>{formatDateDisplay(job.engineerHandoverDate)}</strong></span>
+                                {elapsedDays > 0 && job.finishStatus !== 'FINISH' && (
+                                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1 rounded font-bold">
+                                    {elapsedDays} วัน
                                   </span>
                                 )}
                               </div>
@@ -416,7 +425,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onStartWork?.(job) || onQuickStatus(job)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-colors"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors"
                               >
                                 <Play className="w-2.5 h-2.5 fill-amber-800 text-amber-800" />
                                 <span>เริ่มปฏิบัติงาน</span>
@@ -461,13 +470,13 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                           )}
                         </td>
 
-                        {/* Finish Status with Start Date Indicator */}
+                        {/* Finish Status */}
                         <td className="py-3.5 px-3 text-center">
                           {job.finishStatus === 'FINISH' ? (
                             <button
                               type="button"
                               onClick={() => onQuickStatus(job)}
-                              title="คลิกเพื่อเปลี่ยนสถานะงาน (ปรับกลับหรือแก้ไข)"
+                              title="คลิกเพื่อเปลี่ยนสถานะงาน"
                               className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-2xs transition-all cursor-pointer ring-2 ring-emerald-600/20 hover:ring-emerald-600"
                             >
                               <CheckCircle2 className="w-3 h-3 text-emerald-100 group-hover:rotate-12 transition-transform" />
@@ -537,7 +546,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                             <button
                               type="button"
                               onClick={() => onViewTicket(job)}
-                              title="ดูใบสั่งงาน / พิมพ์"
+                              title="ดูใบสั่งงานขนาด A4 / Print Preview"
                               className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             >
                               <Printer className="w-4 h-4" />
@@ -573,12 +582,12 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                       {/* Expanded 10-Line Breakdown */}
                       {isExpanded && (
                         <tr className="bg-slate-50/90 border-b border-slate-200">
-                          <td colSpan={10} className="p-4">
+                          <td colSpan={11} className="p-4">
                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                               <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center justify-between">
-                                <span>รายละเอียดงาน 10 บรรทัด ({job.id}):</span>
+                                <span>รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น ({job.id}):</span>
                                 {job.remarks && (
-                                  <span className="text-slate-500 font-normal">
+                                  <span className="text-[11px] text-slate-500 font-normal">
                                     หมายเหตุ: <strong className="text-slate-700">{job.remarks}</strong>
                                   </span>
                                 )}
@@ -586,14 +595,27 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                                 {Array.from({ length: 10 }).map((_, i) => {
                                   const text = job.workDetails?.[i] || '';
+                                  const qty = job.workDetailQuantities?.[i];
+                                  const hasQty = qty !== undefined && qty !== '' && String(qty).trim() !== '';
+
                                   return (
-                                    <div key={i} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-100">
-                                      <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center justify-center shrink-0">
-                                        {i + 1}
-                                      </span>
-                                      <span className={text ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
-                                        {text || '(ว่าง)'}
-                                      </span>
+                                    <div
+                                      key={i}
+                                      className={`flex items-center justify-between gap-2 p-2 rounded-lg border ${
+                                        text ? 'bg-blue-50/40 border-blue-100 text-slate-900' : 'bg-slate-50 border-slate-100 text-slate-400 italic'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="font-mono font-bold text-[10px] w-4 h-4 rounded bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+                                          {i + 1}
+                                        </span>
+                                        <span className="truncate">{text || '- ว่าง -'}</span>
+                                      </div>
+                                      {hasQty && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-bold text-[10px] shrink-0 border border-emerald-200">
+                                          {String(qty).includes('ชิ้น') || String(qty).includes('ชุด') ? qty : `${qty} ชิ้น`}
+                                        </span>
+                                      )}
                                     </div>
                                   );
                                 })}

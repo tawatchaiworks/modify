@@ -279,15 +279,39 @@ export const fetchModifyJobsFromSheet = async (
     const project = String(row[8] || '');
     const shipmentDate = String(row[9] || '');
     
-    // 10 lines work details
+    // 10 lines work details + quantities
     const workDetailsRaw = String(row[10] || '');
-    const workDetails = workDetailsRaw
+    const rawLines = workDetailsRaw
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
-    // Pad to 10 lines if needed or keep existing
+
+    const workDetails: string[] = [];
+    const workDetailQuantities: (string | number)[] = [];
+
+    rawLines.forEach((rawLine) => {
+      // Check for quantity annotations like [จำนวน: 5 ชิ้น], (จำนวน 5 ชิ้น), [5 ชิ้น], (5 pcs)
+      let cleaned = rawLine;
+      let qty: string | number = '';
+
+      const matchQty = cleaned.match(/(?:\[จำนวน[:\s]*([^\]]+)\]|\(จำนวน[:\s]*([^\)]+)\)|\[([^\]]+)\]|\(([0-9]+(?:\s*ชิ้น|\s*pcs)?)\))/i);
+      if (matchQty) {
+        qty = (matchQty[1] || matchQty[2] || matchQty[3] || matchQty[4] || '').trim();
+        // Remove the matched quantity tag from the description text
+        cleaned = cleaned.replace(matchQty[0], '').trim();
+      }
+
+      // Remove leading index prefix like 1. or 1)
+      cleaned = cleaned.replace(/^\d+[\.\:\)]\s*/, '').trim();
+
+      workDetails.push(cleaned);
+      workDetailQuantities.push(qty);
+    });
+
+    // Pad to 10 lines
     while (workDetails.length < 10) {
       workDetails.push('');
+      workDetailQuantities.push('');
     }
 
     const modifyDetails = String(row[11] || '');
@@ -356,6 +380,7 @@ export const fetchModifyJobsFromSheet = async (
       project,
       shipmentDate,
       workDetails,
+      workDetailQuantities,
       workDetailsRaw,
       modifyDetails,
       quantity,
@@ -375,14 +400,20 @@ export const fetchModifyJobsFromSheet = async (
  * Format ModifyJobItem into array of column values for Google Sheet
  */
 export const itemToSheetRow = (item: ModifyJobItem): (string | number)[] => {
-  // Join 10 lines of work details with newline numbering if present
+  // Join 10 lines of work details with newline numbering + quantity if present
   let formattedWorkDetails = '';
   if (item.workDetails && item.workDetails.length > 0) {
     const validLines = item.workDetails.map((line, idx) => {
       if (!line || !line.trim()) return '';
-      // If line doesn't start with number, prepend line index
       const trimmed = line.trim();
-      return /^\d+[\.\:\)]/.test(trimmed) ? trimmed : `${idx + 1}. ${trimmed}`;
+      const lineQty = item.workDetailQuantities?.[idx];
+      const qtySuffix = lineQty !== undefined && lineQty !== '' && String(lineQty).trim() !== ''
+        ? ` [จำนวน: ${String(lineQty).trim()}]`
+        : '';
+      
+      // If line doesn't start with number, prepend line index
+      const indexed = /^\d+[\.\:\)]/.test(trimmed) ? trimmed : `${idx + 1}. ${trimmed}`;
+      return `${indexed}${qtySuffix}`;
     }).filter(Boolean);
     formattedWorkDetails = validLines.join('\n');
   } else if (item.workDetailsRaw) {

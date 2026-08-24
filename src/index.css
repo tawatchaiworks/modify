@@ -6,18 +6,75 @@
   }
 }
 
+/* =========================================================================
+   A4 PRINT PREVIEW & PRINTING SYSTEM
+   ========================================================================= */
+
+/* On-screen A4 simulation styling */
+.a4-preview-canvas {
+  width: 210mm;
+  min-height: 297mm;
+  background-color: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin: 0 auto;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.a4-preview-landscape {
+  width: 297mm;
+  min-height: 210mm;
+  background-color: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin: 0 auto;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Print Specific Rules */
 @media print {
   @page {
-    margin: 1cm;
-    size: auto;
-  }
-  
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
+    size: A4 portrait;
+    margin: 8mm 10mm;
   }
 
-  header, nav, .print\:hidden {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  header, nav, footer, .print\:hidden, [role="dialog"] > div:first-child:not(.printable-modal) {
     display: none !important;
+  }
+
+  .a4-preview-canvas,
+  .a4-preview-landscape,
+  .printable-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-page-break {
+    page-break-before: always !important;
+  }
+
+  /* Force borders and background colors to print faithfully */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

@@ -69,6 +69,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
     project: '',
     shipmentDate: '',
     workDetails: Array(10).fill(''),
+    workDetailQuantities: Array(10).fill(''),
     modifyDetails: '',
     workType: 'GENERAL',
     quantity: 1,
@@ -100,18 +101,32 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
   useEffect(() => {
     if (initialData) {
       const paddedWorkDetails = [...(initialData.workDetails || [])];
+      const paddedWorkDetailQuantities = [...(initialData.workDetailQuantities || [])];
       while (paddedWorkDetails.length < 10) {
         paddedWorkDetails.push('');
+      }
+      while (paddedWorkDetailQuantities.length < 10) {
+        paddedWorkDetailQuantities.push('');
       }
       const initialWorkType = initialData.workType || (detectIsPaintingJob(initialData.modifyDetails) ? 'PAINTING' : 'GENERAL');
       setFormData({
         ...initialData,
         workType: initialWorkType,
         workDetails: paddedWorkDetails.slice(0, 10),
+        workDetailQuantities: paddedWorkDetailQuantities.slice(0, 10),
       });
       setRuleGuideTab(initialWorkType as 'GENERAL' | 'PAINTING');
       setHasManuallySetWorkType(!!initialData.workType);
-      setBulkWorkDetailsInput(paddedWorkDetails.filter(Boolean).join('\n'));
+      
+      const bulkFormatted = paddedWorkDetails
+        .map((text, i) => {
+          if (!text) return '';
+          const qty = paddedWorkDetailQuantities[i];
+          return qty ? `${text} (จำนวน ${qty} ชิ้น)` : text;
+        })
+        .filter(Boolean)
+        .join('\n');
+      setBulkWorkDetailsInput(bulkFormatted);
     } else {
       const todayDate = getCurrentDateFormatted();
       const defaultEstimate = calculateEstimatedCompletion(todayDate, 1, 'GENERAL');
@@ -128,6 +143,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
         project: '',
         shipmentDate: defaultEstimate.calculatedDate,
         workDetails: Array(10).fill(''),
+        workDetailQuantities: Array(10).fill(''),
         modifyDetails: '',
         workType: 'GENERAL',
         quantity: 1,
@@ -154,16 +170,42 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
     setFormData((prev) => ({ ...prev, workDetails: updated }));
   };
 
+  const handleWorkDetailQtyChange = (index: number, qtyValue: string) => {
+    const updated = [...(formData.workDetailQuantities || Array(10).fill(''))];
+    updated[index] = qtyValue;
+    setFormData((prev) => ({ ...prev, workDetailQuantities: updated }));
+  };
+
+  const handleFillAllQuantities = () => {
+    const mainQty = formData.quantity || '1';
+    const updated = formData.workDetails.map((detail) => (detail.trim() ? mainQty : ''));
+    setFormData((prev) => ({ ...prev, workDetailQuantities: updated }));
+  };
+
   const handleApplyBulkWorkDetails = () => {
-    const lines = bulkWorkDetailsInput
-      .split('\n')
-      .map((l) => l.replace(/^\d+[\.\:\)]\s*/, '').trim())
-      .filter(Boolean);
-    const updated = Array(10).fill('');
+    const lines = bulkWorkDetailsInput.split('\n').filter((l) => l.trim().length > 0);
+    const updatedTexts = Array(10).fill('');
+    const updatedQtys = Array(10).fill('');
+
     lines.slice(0, 10).forEach((line, idx) => {
-      updated[idx] = line;
+      let cleaned = line.replace(/^\d+[\.\:\)]\s*/, '').trim();
+      let extractedQty = '';
+
+      const matchQty = cleaned.match(/(?:\[จำนวน[:\s]*([^\]]+)\]|\(จำนวน[:\s]*([^\)]+)\)|\[([^\]]+)\]|\(([0-9]+(?:\s*ชิ้น|\s*pcs)?)\))/i);
+      if (matchQty) {
+        extractedQty = (matchQty[1] || matchQty[2] || matchQty[3] || matchQty[4] || '').trim();
+        cleaned = cleaned.replace(matchQty[0], '').trim();
+      }
+
+      updatedTexts[idx] = cleaned;
+      updatedQtys[idx] = extractedQty || (formData.quantity ? String(formData.quantity) : '');
     });
-    setFormData((prev) => ({ ...prev, workDetails: updated }));
+
+    setFormData((prev) => ({
+      ...prev,
+      workDetails: updatedTexts,
+      workDetailQuantities: updatedQtys,
+    }));
     setShowBulkInput(false);
   };
 
@@ -645,34 +687,44 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
             )}
           </div>
 
-          {/* Section 3: รายละเอียดงาน 10 บรรทัด (10-Line Work Breakdown) */}
+          {/* Section 3: รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น (10-Line Work Breakdown & Quantities) */}
           <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5 pb-2 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <ListOrdered className="w-4 h-4 text-emerald-600" />
                 <h3 className="text-sm font-bold text-slate-900">
-                  3. รายละเอียดงาน 10 บรรทัด (10-Line Work Specification)
+                  3. รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น (10-Line Work & Quantity Breakdown)
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowBulkInput(!showBulkInput)}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 self-start sm:self-auto bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors"
-              >
-                {showBulkInput ? 'สลับเป็นแบบกรอกทีละบรรทัด' : 'วางข้อความหลายบรรทัด (Bulk Paste)'}
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleFillAllQuantities}
+                  title="คัดลอกจำนวนชิ้นรวมจากส่วนที่ 2 มาใส่ในทุกรายการงานที่มีข้อความ"
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors"
+                >
+                  ⚡ ใส่จำนวน {formData.quantity || '1'} ทุกข้อ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkInput(!showBulkInput)}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 self-start sm:self-auto bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors"
+                >
+                  {showBulkInput ? 'สลับเป็นแบบกรอกทีละบรรทัด' : 'วางข้อความหลายบรรทัด (Bulk Paste)'}
+                </button>
+              </div>
             </div>
 
             {showBulkInput ? (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500">
-                  วางข้อความของคุณที่นี่ ระบบจะแบ่งเป็นบรรทัดที่ 1 ถึง 10 โดยอัตโนมัติ:
+                  วางข้อความของคุณที่นี่ (สามารถระบุจำนวน เช่น <code>1. กัดร่อง 5 ชิ้น</code> หรือ <code>ตรวจ Jig (จำนวน 2 ชิ้น)</code> ได้):
                 </p>
                 <textarea
                   rows={8}
                   value={bulkWorkDetailsInput}
                   onChange={(e) => setBulkWorkDetailsInput(e.target.value)}
-                  placeholder="บรรทัดที่ 1: ตรวจสอบขนาด Jig Base&#10;บรรทัดที่ 2: กัดร่องสล็อตเพิ่ม 2 mm&#10;บรรทัดที่ 3: เจาะรูต๊าปเกลียว M6..."
+                  placeholder="บรรทัดที่ 1: ตรวจสอบขนาด Jig Base (จำนวน 2 ชิ้น)&#10;บรรทัดที่ 2: กัดร่องสล็อตเพิ่ม 2 mm - 2 ชิ้น&#10;บรรทัดที่ 3: เจาะรูต๊าปเกลียว M6 [4 ชิ้น]..."
                   className="w-full p-3 text-xs sm:text-sm font-mono bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
                 />
                 <button
@@ -684,21 +736,40 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {formData.workDetails.map((detail, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-200">
-                      {index + 1}
-                    </span>
-                    <input
-                      type="text"
-                      value={detail}
-                      onChange={(e) => handleWorkDetailChange(index, e.target.value)}
-                      placeholder={`รายละเอียดงานข้อที่ ${index + 1}`}
-                      className="w-full px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-hidden"
-                    />
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {formData.workDetails.map((detail, index) => {
+                  const qtyValue = formData.workDetailQuantities?.[index] !== undefined
+                    ? formData.workDetailQuantities[index]
+                    : '';
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-xl shadow-2xs hover:border-emerald-300 transition-colors"
+                    >
+                      <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-200">
+                        {index + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={detail}
+                        onChange={(e) => handleWorkDetailChange(index, e.target.value)}
+                        placeholder={`รายละเอียดงานข้อที่ ${index + 1}`}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs sm:text-sm bg-transparent border-0 focus:ring-0 outline-hidden text-slate-800 placeholder:text-slate-400"
+                      />
+                      <div className="flex items-center gap-1 shrink-0 border-l border-slate-200 pl-2 pr-1">
+                        <input
+                          type="text"
+                          value={qtyValue}
+                          onChange={(e) => handleWorkDetailQtyChange(index, e.target.value)}
+                          placeholder="จำนวน"
+                          title={`จำนวนชิ้นสำหรับรายการที่ ${index + 1}`}
+                          className="w-16 sm:w-20 px-2 py-1 text-xs text-center font-semibold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-hidden text-emerald-900 placeholder:text-slate-400"
+                        />
+                        <span className="text-[11px] text-slate-400 font-medium">ชิ้น</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -13,6 +13,7 @@ export interface ModifyJobItem {
   project: string; // Project
   shipmentDate: string; // Shipment Date
   workDetails: string[]; // รายละเอียดงาน 10 บรรทัด (array of 10 strings)
+  workDetailQuantities?: (number | string)[]; // จำนวนชิ้นของแต่ละรายการ 10 บรรทัด (array of 10 quantities)
   workDetailsRaw?: string; // consolidated raw string with line breaks
   modifyDetails: string; // รายละเอียดที่ให้ Modify
   workType?: 'GENERAL' | 'PAINTING' | string; // ประเภทงาน: ทั่วไป หรือ ทำสี

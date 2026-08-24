@@ -12,6 +12,7 @@ import {
   Sparkles,
   Settings,
   Database,
+  Printer,
 } from 'lucide-react';
 import { GoogleSpreadsheetInfo, ViewMode } from '../types';
 
@@ -22,6 +23,7 @@ interface HeaderProps {
   isLoading: boolean;
   onViewModeChange: (mode: ViewMode) => void;
   onOpenNewForm: () => void;
+  onOpenPrintReport?: () => void;
   onRefresh: () => void;
   onLogin: () => void;
   onLogout: () => void;
@@ -35,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   isLoading,
   onViewModeChange,
   onOpenNewForm,
+  onOpenPrintReport,
   onRefresh,
   onLogin,
   onLogout,
@@ -131,6 +134,19 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
+            {/* Print A4 Report Button */}
+            {onOpenPrintReport && (
+              <button
+                type="button"
+                onClick={onOpenPrintReport}
+                title="Print Preview ขนาด A4 ทุกสถานะ"
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-blue-600" />
+                <span className="hidden sm:inline">พิมพ์รายงาน A4</span>
+              </button>
+            )}
+
             {/* Refresh Button */}
             {user && (
               <button
@@ -176,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </div>
             ) : (
-              /* Google Sign-in Material button according to Skill requirements */
+              /* Google Sign-in Material button */
               <button
                 type="button"
                 onClick={onLogin}
@@ -188,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
                   <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                 </svg>
-                <span>เข้าสู่ระบบด้วย Google</span>
+                <span>เข้าสู่ระบบ Google</span>
               </button>
             )}
           </div>

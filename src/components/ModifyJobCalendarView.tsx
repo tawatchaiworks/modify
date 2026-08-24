@@ -57,6 +57,7 @@ interface ModifyJobCalendarViewProps {
   onQuickStatus: (job: ModifyJobItem) => void;
   onStartWork?: (job: ModifyJobItem) => void;
   onViewTicket: (job: ModifyJobItem) => void;
+  onPrintStatusReport?: (status?: string) => void;
   onDelete: (job: ModifyJobItem) => void;
   onAddNew: () => void;
 }
@@ -69,6 +70,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
   onQuickStatus,
   onStartWork,
   onViewTicket,
+  onPrintStatusReport,
   onDelete,
   onAddNew,
 }) => {
@@ -261,17 +263,17 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
   // Search filtered month jobs for the master schedule table
   const displayMonthJobs = useMemo(() => {
     if (!monthSearchQuery.trim()) return currentMonthJobs;
-    const q = monthSearchQuery.toLowerCase().trim();
+    const q = (monthSearchQuery || '').toLowerCase().trim();
     return currentMonthJobs.filter((j) => {
       return (
-        j.id.toLowerCase().includes(q) ||
-        (j.customer && j.customer.toLowerCase().includes(q)) ||
-        (j.project && j.project.toLowerCase().includes(q)) ||
-        (j.sale && j.sale.toLowerCase().includes(q)) ||
-        (j.saleSoNo && j.saleSoNo.toLowerCase().includes(q)) ||
-        (j.technician && j.technician.toLowerCase().includes(q)) ||
-        (j.requester && j.requester.toLowerCase().includes(q)) ||
-        (j.createdBy && j.createdBy.toLowerCase().includes(q))
+        (j.id && String(j.id).toLowerCase().includes(q)) ||
+        (j.customer && String(j.customer).toLowerCase().includes(q)) ||
+        (j.project && String(j.project).toLowerCase().includes(q)) ||
+        (j.sale && String(j.sale).toLowerCase().includes(q)) ||
+        (j.saleSoNo && String(j.saleSoNo).toLowerCase().includes(q)) ||
+        (j.technician && String(j.technician).toLowerCase().includes(q)) ||
+        (j.requester && String(j.requester).toLowerCase().includes(q)) ||
+        (j.createdBy && String(j.createdBy).toLowerCase().includes(q))
       );
     });
   }, [currentMonthJobs, monthSearchQuery]);
@@ -445,8 +447,19 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
           </button>
         </div>
 
-        {/* Right: Quick Tools (iCal Export & Total Indicator) */}
+        {/* Right: Quick Tools (iCal Export & Print A4) */}
         <div className="flex items-center gap-2">
+          {onPrintStatusReport && (
+            <button
+              type="button"
+              onClick={() => onPrintStatusReport(selectedStatus)}
+              title="Print Preview รายงานสถานะขนาด A4"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-xl text-xs font-semibold border border-blue-200 transition-colors cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>พิมพ์ A4</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => exportIcsCalendar(jobs)}

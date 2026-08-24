@@ -16,6 +16,7 @@ import {
   Sparkles,
   Layers,
   Wrench,
+  Printer,
 } from 'lucide-react';
 import { ModifyJobItem, GoogleSpreadsheetInfo, ViewMode } from './types';
 import {
@@ -42,6 +43,7 @@ import { ModifyRequestForm } from './components/ModifyRequestForm';
 import { StatusUpdateModal } from './components/StatusUpdateModal';
 import { StartWorkModal } from './components/StartWorkModal';
 import { PrintJobTicket } from './components/PrintJobTicket';
+import { PrintStatusReportModal } from './components/PrintStatusReportModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { formatDateDisplay } from './utils/formatters';
@@ -72,6 +74,7 @@ const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
       'ทำความสะอาดและลบครีบคมทั้งหมด',
       'แพ็กกิ้งพร้อมส่งมอบงาน',
     ],
+    workDetailQuantities: ['2 ชุด', '2 ชุด', '8 รู', '2 ชิ้น', '2 ชุด', '4 ชิ้น', '2 ชุด', '2 ชุด', '2 ชุด', '2 ชุด'],
     modifyDetails: 'ดัดแปลงร่อง Clamp และปรับระยะสล็อตด้านข้าง 3 mm ตามสเปกใหม่ของลูกค้า ป้องกันชิ้นงานเอียงขณะเชื่อม',
     quantity: '2 ชุด',
     technician: 'ช่างสมพงษ์ (CNC)',
@@ -107,6 +110,7 @@ const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
       '',
       '',
     ],
+    workDetailQuantities: ['6 ชิ้น', '6 ชิ้น', '12 จุด', '24 ตัว', '', '', '', '', '', ''],
     modifyDetails: 'เพิ่มระยะความยาวรางและเปลี่ยนมุมองศาทางเลี้ยว 15 องศา',
     quantity: '6 ชิ้น',
     technician: 'ช่างธนาวุฒิ (Weld/Sheet)',
@@ -136,6 +140,10 @@ export default function App() {
   const [quickStatusJob, setQuickStatusJob] = useState<ModifyJobItem | null>(null);
   const [startWorkJob, setStartWorkJob] = useState<ModifyJobItem | null>(null);
   const [ticketJob, setTicketJob] = useState<ModifyJobItem | null>(null);
+  const [printStatusReport, setPrintStatusReport] = useState<{ isOpen: boolean; status: string }>({
+    isOpen: false,
+    status: 'ALL',
+  });
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
 
   // Confirmation Modal state (for workspace mutation safety)
@@ -452,6 +460,7 @@ export default function App() {
           setEditingJob(null);
           setIsFormOpen(true);
         }}
+        onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
         onRefresh={loadSheetData}
         onLogin={handleLogin}
         onLogout={handleLogout}
@@ -494,6 +503,7 @@ export default function App() {
           jobs={jobs}
           selectedFilter={selectedFilter}
           onSelectFilter={setSelectedFilter}
+          onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status })}
         />
 
         {/* Active Filter Report Banner */}
@@ -551,14 +561,26 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSelectedFilter('ALL')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>แสดงงานทั้งหมด (ล้างตัวกรอง)</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
+                title="Print Preview ขนาด A4 รายงานตามสถานะนี้"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-800 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+              >
+                <Printer className="w-3.5 h-3.5 text-blue-600" />
+                <span>พิมพ์รายงานสถานะนี้ (A4)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedFilter('ALL')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>แสดงงานทั้งหมด (ล้างตัวกรอง)</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -574,6 +596,7 @@ export default function App() {
             onQuickStatus={(job) => setQuickStatusJob(job)}
             onStartWork={(job) => setStartWorkJob(job)}
             onViewTicket={(job) => setTicketJob(job)}
+            onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
             onDelete={handleDeleteJob}
             onAddNew={() => {
               setEditingJob(null);
@@ -612,6 +635,7 @@ export default function App() {
             onQuickStatus={(job) => setQuickStatusJob(job)}
             onStartWork={(job) => setStartWorkJob(job)}
             onViewTicket={(job) => setTicketJob(job)}
+            onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
             onDelete={handleDeleteJob}
             onAddNew={() => {
               setEditingJob(null);
@@ -665,6 +689,15 @@ export default function App() {
         isOpen={Boolean(ticketJob)}
         job={ticketJob}
         onClose={() => setTicketJob(null)}
+      />
+
+      {/* Printable Status Report A4 Modal */}
+      <PrintStatusReportModal
+        isOpen={printStatusReport.isOpen}
+        initialStatus={printStatusReport.status}
+        jobs={jobs}
+        currentUserEmail={user?.email || 'tawatchai.works@gmail.com'}
+        onClose={() => setPrintStatusReport({ isOpen: false, status: 'ALL' })}
       />
 
       {/* Sheet Settings Modal */}

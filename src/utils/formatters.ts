@@ -427,8 +427,25 @@ export const QUANTITY_WORKING_DAYS_RULES = GENERAL_WORKING_DAYS_RULES;
 /**
  * ตรวจจับว่าเป็นงานทำสีหรือไม่จากข้อความ (Auto-detection for painting jobs)
  */
-export const detectIsPaintingJob = (text?: string): boolean => {
-  if (!text) return false;
+export const detectIsPaintingJob = (input?: any): boolean => {
+  if (!input) return false;
+  let text = '';
+  if (typeof input === 'string') {
+    text = input;
+  } else if (typeof input === 'object' && input !== null) {
+    if (input.workType === 'PAINTING') return true;
+    text = [
+      input.modifyDetails,
+      input.remarks,
+      ...(Array.isArray(input.workDetails) ? input.workDetails : []),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  } else {
+    text = String(input);
+  }
+
+  if (!text || typeof text !== 'string') return false;
   const lower = text.toLowerCase();
   const paintingKeywords = [
     'ทำสี',
