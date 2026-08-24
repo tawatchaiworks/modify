@@ -810,27 +810,6 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                   />
                   <Layers className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
                 </div>
-
-                {/* Live notice if 10-line quantity sum is available */}
-                {breakdownQtyInfo.hasAnyQty && breakdownQtyInfo.totalQty > 0 && (
-                  <div className="mt-1.5 flex items-center justify-between bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-1 rounded-lg text-[11px]">
-                    <span className="flex items-center gap-1 font-medium">
-                      <Calculator className="w-3 h-3 text-emerald-600" />
-                      <span>ยอดรวม 10 รายการ: <strong>{breakdownQtyInfo.totalQty} ชิ้น</strong></span>
-                    </span>
-                    {String(formData.quantity) !== String(breakdownQtyInfo.totalQty) ? (
-                      <button
-                        type="button"
-                        onClick={handleApplySumToMainQuantity}
-                        className="font-bold text-emerald-700 hover:text-emerald-900 underline hover:no-underline ml-1"
-                      >
-                        ⚡ ปรับให้ตรงกับ 10 ข้อ
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-bold text-emerald-700">✓ อ้างอิงตรงกัน</span>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -932,7 +911,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                     3. รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น (10-Line Work & Quantity Breakdown)
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    ระบุรายละเอียดงานและจำนวนชิ้นของแต่ละรายการ (ยอดรวมจะถูกนำไปอ้างอิงเป็นจำนวนสินค้าหลัก)
+                    ระบุรายละเอียดงานและจำนวนชิ้นของแต่ละรายการ (สูงสุด 10 รายการ)
                   </p>
                 </div>
               </div>
@@ -966,7 +945,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
             {showBulkInput ? (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500">
-                  วางข้อความของคุณที่นี่ (สามารถระบุจำนวน เช่น <code>1. กัดร่อง 5 ชิ้น</code> หรือ <code>ตรวจ Jig (จำนวน 2 ชิ้น)</code> ได้ ระบบจะดึงจำนวนและรวมยอดให้อัตโนมัติ):
+                  วางข้อความของคุณที่นี่ (สามารถระบุจำนวน เช่น <code>1. กัดร่อง 5 ชิ้น</code> หรือ <code>ตรวจ Jig (จำนวน 2 ชิ้น)</code> ได้ ระบบจะแยกจำนวนให้):
                 </p>
                 <textarea
                   rows={8}
@@ -980,7 +959,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                   onClick={handleApplyBulkWorkDetails}
                   className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-xs"
                 >
-                  นำไปใส่ใน 10 บรรทัดและคำนวณยอดรวม
+                  นำไปใส่ใน 10 บรรทัด
                 </button>
               </div>
             ) : (
@@ -1019,40 +998,6 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                       </div>
                     );
                   })}
-                </div>
-
-                {/* Summary Card for 10-Line Breakdown */}
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
-                      <Calculator className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-2">
-                        <span>ยอดรวมจำนวนจาก 10 รายการ:</span>
-                        <span className="text-sm font-black text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-300 font-mono">
-                          {breakdownQtyInfo.totalQty} ชิ้น
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          (จาก {breakdownQtyInfo.countWithQty}/10 ข้อ)
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600">
-                        อ้างอิงเป็นจำนวนของสินค้าหลัก ({formData.quantity} ชิ้น) สำหรับคำนวณ Lead-Time และบันทึกลง Sheet
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={handleApplySumToMainQuantity}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
-                    >
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>นำยอด {breakdownQtyInfo.totalQty} ชิ้น ไปใช้</span>
-                    </button>
-                  </div>
                 </div>
               </div>
             )}

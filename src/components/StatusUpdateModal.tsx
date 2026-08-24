@@ -389,7 +389,6 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                   onClick={() => {
                     setInspectionResult('COMPLETE');
                     if (!inspectionDate) setInspectionDate(getCurrentDateFormatted());
-                    if (finishStatus !== 'FINISH') setFinishStatus('FINISH');
                   }}
                   className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                     inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
@@ -398,7 +397,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                   }`}
                 >
                   <span>✅ COMPLETE</span>
-                  <span className="text-[10px] opacity-80 font-normal">ผ่าน / ตรวจเสร็จ</span>
+                  <span className="text-[10px] opacity-80 font-normal">ตรวจผ่าน (QC Complete)</span>
                 </button>
 
                 <button
@@ -406,7 +405,6 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                   onClick={() => {
                     setInspectionResult('EDIT');
                     if (!inspectionDate) setInspectionDate(getCurrentDateFormatted());
-                    if (finishStatus === 'FINISH') setFinishStatus('IN_PROGRESS');
                   }}
                   className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                     inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
@@ -461,12 +459,6 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                 type="button"
                 onClick={() => {
                   setFinishStatus('FINISH');
-                  if (!inspectionDate) {
-                    setInspectionDate(getCurrentDateFormatted());
-                  }
-                  if (inspectionResult === 'WAITING' || !inspectionResult) {
-                    setInspectionResult('PASS');
-                  }
                 }}
                 className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                   finishStatus === 'FINISH'

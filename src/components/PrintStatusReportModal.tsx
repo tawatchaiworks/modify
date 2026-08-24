@@ -18,7 +18,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
-import { formatDateDisplay, formatThaiFullDate, getUrgencyDisplay } from '../utils/formatters';
+import {
+  formatDateDisplay,
+  formatThaiFullDate,
+  getUrgencyDisplay,
+  calculateEstimatedCompletion,
+  getCurrentDateFormatted,
+} from '../utils/formatters';
 
 interface PrintStatusReportModalProps {
   jobs: ModifyJobItem[];
@@ -72,6 +78,19 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
     });
   }, [jobs, selectedStatus]);
 
+  const getJobEstimatedDate = (item: ModifyJobItem): string => {
+    if (item.estimatedReturnDate && item.estimatedReturnDate.trim() !== '' && item.estimatedReturnDate !== '-') {
+      return formatDateDisplay(item.estimatedReturnDate);
+    }
+    const baseDate = item.engineerHandoverDate || item.requestDate || item.createdAt || getCurrentDateFormatted();
+    const calc = calculateEstimatedCompletion(
+      baseDate,
+      item.quantity || 1,
+      item.workTypes || item.workType || 'GENERAL'
+    );
+    return formatDateDisplay(calc.calculatedDate);
+  };
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
@@ -95,7 +114,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
   const getStatusTitle = (status: string) => {
     switch (status) {
       case 'IN_PROGRESS':
-        return 'รายงานสถานะ: กำลังดำเนินการ / อยู่กับ Engineer (IN PROGRESS)';
+        return 'รายงานสถานะ: รอดำเนินการ / อยู่กับ Engineer (IN PROGRESS)';
       case 'FINISH':
         return 'รายงานสถานะ: งานเสร็จสิ้นสมบูรณ์ 100% (FINISH)';
       case 'COMPLETE':
@@ -115,7 +134,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
     switch (status) {
       case 'IN_PROGRESS':
         return {
-          label: '🟡 กำลังดำเนินการ',
+          label: '🟡 รอดำเนินการ',
           bg: 'bg-amber-100 text-amber-900 border-amber-300',
         };
       case 'FINISH':
@@ -182,7 +201,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
               className="bg-transparent text-xs font-bold text-white border-none outline-none cursor-pointer pr-2"
             >
               <option value="ALL" className="bg-slate-900 text-white">📋 ทุกสถานะงาน (All Jobs)</option>
-              <option value="IN_PROGRESS" className="bg-slate-900 text-white">🟡 กำลังดำเนินการ (In Progress)</option>
+              <option value="IN_PROGRESS" className="bg-slate-900 text-white">🟡 รอดำเนินการ (In Progress)</option>
               <option value="FINISH" className="bg-slate-900 text-white">🟢 เสร็จสมบูรณ์ (Finish)</option>
               <option value="COMPLETE" className="bg-slate-900 text-white">✅ ตรวจผ่าน (QC Complete/Pass)</option>
               <option value="EDIT" className="bg-slate-900 text-white">⚠️ ส่งกลับแก้ไข (QC Edit)</option>
@@ -318,7 +337,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                 <span className="font-black text-blue-950 text-sm">{totalCount} รายการ</span>
               </div>
               <div className="p-1.5 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 block">กำลังดำเนินการ</span>
+                <span className="text-[10px] text-slate-500 block">รอดำเนินการ</span>
                 <span className="font-black text-amber-700 text-sm">{inProgressCount} รายการ</span>
               </div>
               <div className="p-1.5 bg-white rounded-lg border border-slate-200">
@@ -359,8 +378,8 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                       <th className="p-2 border-r border-slate-700 min-w-[80px]">Sale</th>
                       <th className="p-2 border-r border-slate-700 min-w-[85px]">ช่างผู้ทำ</th>
                       <th className="p-2 border-r border-slate-700 min-w-[95px]">ผู้สร้างงาน</th>
-                      <th className="p-2 border-r border-slate-700 min-w-[85px]">ชื่อผู้รับผิดชอบ</th>
-                      <th className="p-2 border-r border-slate-700 min-w-[75px]">กำหนดส่งคืน</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[85px]">ส่งมอบ Engineer</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[85px] text-amber-300">วันประมาณการ</th>
                       <th className="p-2 border-r border-slate-700 min-w-[75px]">ตรวจวันที่</th>
                       <th className="p-2 border-r border-slate-700 min-w-[85px] text-center">ผลตรวจ QC</th>
                       <th className="p-2 text-center min-w-[80px]">สถานะ Finish</th>
@@ -372,6 +391,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                       const isRowEdit = job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT';
                       const isRowFinish = job.finishStatus === 'FINISH';
                       const urgency = getUrgencyDisplay(job.urgencyLevel);
+                      const estDateDisplay = getJobEstimatedDate(job);
 
                       return (
                         <tr
@@ -418,8 +438,8 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                           <td className="p-2 border-r border-slate-200 text-slate-700 whitespace-nowrap">
                             {formatDateDisplay(job.engineerHandoverDate)}
                           </td>
-                          <td className="p-2 border-r border-slate-200 font-medium text-amber-900 whitespace-nowrap">
-                            {formatDateDisplay(job.estimatedReturnDate)}
+                          <td className="p-2 border-r border-slate-200 font-bold text-amber-900 whitespace-nowrap bg-amber-50/50">
+                            {estDateDisplay}
                           </td>
                           <td className="p-2 border-r border-slate-200 text-slate-700 whitespace-nowrap">
                             {formatDateDisplay(job.inspectionDate)}

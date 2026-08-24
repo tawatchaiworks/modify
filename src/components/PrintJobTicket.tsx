@@ -29,6 +29,8 @@ import {
   formatThaiFullDate,
   getUrgencyDisplay,
   getWorkTypeDisplay,
+  calculateEstimatedCompletion,
+  getCurrentDateFormatted,
 } from '../utils/formatters';
 
 interface PrintJobTicketProps {
@@ -388,7 +390,15 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
               <div className="space-y-0.5">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block">12. ประมาณการส่งคืน:</span>
                 <span className="font-bold text-amber-900 text-sm block">
-                  {formatDateDisplay(job.estimatedReturnDate)}
+                  {job.estimatedReturnDate && job.estimatedReturnDate.trim() !== '' && job.estimatedReturnDate !== '-'
+                    ? formatDateDisplay(job.estimatedReturnDate)
+                    : formatDateDisplay(
+                        calculateEstimatedCompletion(
+                          job.engineerHandoverDate || job.requestDate || job.createdAt || getCurrentDateFormatted(),
+                          job.quantity || 1,
+                          job.workTypes || job.workType || 'GENERAL'
+                        ).calculatedDate
+                      )}
                 </span>
               </div>
             </div>

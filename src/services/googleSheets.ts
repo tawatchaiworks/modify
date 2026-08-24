@@ -518,13 +518,18 @@ export const fetchModifyJobsFromSheet = async (
     }
 
     let inspectionResult: ModifyJobItem['inspectionResult'] = '';
-    if (rawInspectionResult.includes('PASS')) inspectionResult = 'PASS';
-    else if (rawInspectionResult.includes('REJECT')) inspectionResult = 'REJECT';
-    else if (rawInspectionResult.includes('WAITING') || rawInspectionResult.includes('รอ')) inspectionResult = 'WAITING';
-    else if (rawInspectionResult) inspectionResult = 'PENDING';
+    if (rawInspectionResult.includes('PASS') || rawInspectionResult.includes('COMPLETE') || rawInspectionResult.includes('ผ่าน')) {
+      inspectionResult = 'COMPLETE';
+    } else if (rawInspectionResult.includes('REJECT') || rawInspectionResult.includes('EDIT') || rawInspectionResult.includes('แก้ไข') || rawInspectionResult.includes('ไม่ผ่าน')) {
+      inspectionResult = 'EDIT';
+    } else if (rawInspectionResult.includes('WAITING') || rawInspectionResult.includes('รอ')) {
+      inspectionResult = 'WAITING';
+    } else if (rawInspectionResult) {
+      inspectionResult = 'PENDING';
+    }
 
     let finishStatus: ModifyJobItem['finishStatus'] = 'PENDING';
-    if (rawFinish.includes('FINISH') || rawFinish.includes('เสร็จ') || rawFinish.includes('COMPLETE')) {
+    if (rawFinish.includes('FINISH') || rawFinish.includes('เสร็จ')) {
       finishStatus = 'FINISH';
     } else if (rawFinish.includes('IN_PROGRESS') || rawFinish.includes('กำลัง') || rawFinish.includes('PROGRESS')) {
       finishStatus = 'IN_PROGRESS';

@@ -223,7 +223,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
             >
               <option value="ALL">ทั้งหมด</option>
               <option value="PENDING">Pending (รอดำเนินการ)</option>
-              <option value="IN_PROGRESS">In Progress (กำลังทำ)</option>
+              <option value="IN_PROGRESS">In Progress (รอดำเนินการ/กับ Engineer)</option>
               <option value="FINISH">Finish (เสร็จแล้ว)</option>
               <option value="CANCELLED">Cancelled (ยกเลิก)</option>
             </select>
@@ -550,7 +550,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-2xs transition-all cursor-pointer"
                               >
                                 <Clock className="w-3 h-3 animate-pulse" />
-                                <span>กำลังดำเนินการ</span>
+                                <span>รอดำเนินการ</span>
                               </button>
                               {job.engineerHandoverDate && (
                                 <span className="text-[10px] text-amber-900 font-semibold mt-0.5">

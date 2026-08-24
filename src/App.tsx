@@ -606,7 +606,6 @@ export default function App() {
         isLoading={isLoading}
         isAutoSyncEnabled={isAutoSyncEnabled}
         isAutoSyncing={isAutoSyncing}
-        lastAutoSyncTime={lastAutoSyncTime}
         onToggleAutoSync={() => {
           setIsAutoSyncEnabled(!isAutoSyncEnabled);
           showToast(
@@ -623,7 +622,6 @@ export default function App() {
         }}
         onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
         onRefresh={loadSheetData}
-        onSyncAllToSheet={handleSyncAllToSheet}
         onLogin={handleLogin}
         onLogout={handleLogout}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
@@ -703,7 +701,7 @@ export default function App() {
                       : selectedFilter === 'FINISH'
                       ? 'เฉพาะงานที่เสร็จสมบูรณ์แล้ว (FINISH)'
                       : selectedFilter === 'IN_PROGRESS'
-                      ? 'เฉพาะงานที่กำลังดำเนินการ / กับ Engineer'
+                      ? 'เฉพาะงานที่รอดำเนินการ / กับ Engineer'
                       : 'เฉพาะงานที่รอตรวจสอบ (WAITING)'}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -718,7 +716,7 @@ export default function App() {
                     : selectedFilter === 'FINISH'
                     ? 'คัดกรองเฉพาะงานที่มีสถานะงานเสร็จสมบูรณ์ 100%'
                     : selectedFilter === 'IN_PROGRESS'
-                    ? 'คัดกรองเฉพาะงานที่อยู่ระหว่างการดำเนินงานของช่าง/วิศวกร'
+                    ? 'คัดกรองเฉพาะงานที่รอดำเนินการ / อยู่ระหว่างดำเนินงานของช่าง'
                     : 'คัดกรองเฉพาะงานที่รอการตรวจเช็ค'}
                 </p>
               </div>

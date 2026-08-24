@@ -14,7 +14,6 @@ import {
   Settings,
   Database,
   Printer,
-  CloudUpload,
 } from 'lucide-react';
 import { GoogleSpreadsheetInfo, ViewMode } from '../types';
 
@@ -25,13 +24,11 @@ interface HeaderProps {
   isLoading: boolean;
   isAutoSyncEnabled?: boolean;
   isAutoSyncing?: boolean;
-  lastAutoSyncTime?: string | null;
   onToggleAutoSync?: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onOpenNewForm: () => void;
   onOpenPrintReport?: () => void;
   onRefresh: () => void;
-  onSyncAllToSheet?: () => void;
   onLogin: () => void;
   onLogout: () => void;
   onOpenSheetSettings: () => void;
@@ -44,13 +41,11 @@ export const Header: React.FC<HeaderProps> = ({
   isLoading,
   isAutoSyncEnabled = true,
   isAutoSyncing = false,
-  lastAutoSyncTime,
   onToggleAutoSync,
   onViewModeChange,
   onOpenNewForm,
   onOpenPrintReport,
   onRefresh,
-  onSyncAllToSheet,
   onLogin,
   onLogout,
   onOpenSheetSettings,
@@ -173,60 +168,9 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Auto Sync & Refresh / Sync Buttons */}
+            {/* Refresh Button */}
             {user && (
               <div className="flex items-center gap-1.5">
-                {/* Auto Sync Indicator (ทุก 3 วินาที) */}
-                <button
-                  type="button"
-                  onClick={onToggleAutoSync}
-                  title={
-                    isAutoSyncEnabled
-                      ? `🟢 ระบบกำลัง Auto Sync ลง Google Sheet ตาราง modify อัตโนมัติทุก 3 วินาที (คลิกเพื่อหยุดชั่วคราว) ${
-                          lastAutoSyncTime ? `[ล่าสุด: ${lastAutoSyncTime}]` : ''
-                        }`
-                      : '⚪ Auto Sync ปิดอยู่ (คลิกเพื่อเปิด Auto Sync ทุก 3 วินาที)'
-                  }
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-                    isAutoSyncEnabled
-                      ? isAutoSyncing
-                        ? 'bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-400/30'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                      : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
-                  }`}
-                >
-                  {isAutoSyncing ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                  ) : isAutoSyncEnabled ? (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-                  )}
-                  <span className="hidden sm:inline">
-                    {isAutoSyncing
-                      ? 'กำลังบันทึกลง Sheet...'
-                      : isAutoSyncEnabled
-                      ? `Auto 3s ${lastAutoSyncTime ? `(${lastAutoSyncTime})` : ''}`
-                      : 'Auto Sync: ปิด'}
-                  </span>
-                </button>
-
-                {onSyncAllToSheet && (
-                  <button
-                    type="button"
-                    onClick={onSyncAllToSheet}
-                    disabled={isLoading || isAutoSyncing}
-                    title="อัปเดตข้อมูลทั้งหมดลง Google Sheet ตอนนี้"
-                    className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                  >
-                    <CloudUpload className="w-3.5 h-3.5" />
-                    <span>ซิงค์ชีตทันที</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={onRefresh}

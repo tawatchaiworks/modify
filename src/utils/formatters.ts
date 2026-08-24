@@ -1082,10 +1082,10 @@ export const getJobProgressDetails = (
     statusDetailText = `เสร็จสิ้นแล้ว${job.inspectionDate ? ` (${formatDateDisplay(job.inspectionDate)})` : ''}`;
   } else if (isInProgress) {
     if (isStarted) {
-      statusBadgeText = 'กำลังดำเนินการ (In Progress)';
+      statusBadgeText = 'รอดำเนินการ (In Progress)';
       statusDetailText = `เริ่มปฏิบัติงานเมื่อ ${formatDateDisplay(startDate)} (ทำมาแล้ว ${elapsedWorkingDays} วันทำการ)`;
     } else {
-      statusBadgeText = 'กำลังดำเนินการ';
+      statusBadgeText = 'รอดำเนินการ';
       statusDetailText = 'รอกำหนดวันเริ่มงานของ Engineer';
     }
   }
