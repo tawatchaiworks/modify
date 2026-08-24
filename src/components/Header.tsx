@@ -14,6 +14,7 @@ import {
   Settings,
   Database,
   Printer,
+  Bell,
 } from 'lucide-react';
 import { GoogleSpreadsheetInfo, ViewMode } from '../types';
 
@@ -24,6 +25,8 @@ interface HeaderProps {
   isLoading: boolean;
   isAutoSyncEnabled?: boolean;
   isAutoSyncing?: boolean;
+  deliveryAlertCount?: number;
+  onOpenDeliveryAlert?: () => void;
   onToggleAutoSync?: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onOpenNewForm: () => void;
@@ -41,6 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   isLoading,
   isAutoSyncEnabled = true,
   isAutoSyncing = false,
+  deliveryAlertCount = 0,
+  onOpenDeliveryAlert,
   onToggleAutoSync,
   onViewModeChange,
   onOpenNewForm,
@@ -154,6 +159,24 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>KPI ช่าง & อัตราสำเร็จ</span>
               </button>
             </div>
+
+            {/* Delivery 1-Day Alert Button */}
+            {deliveryAlertCount > 0 && onOpenDeliveryAlert && (
+              <button
+                id="header-delivery-alert-btn"
+                type="button"
+                onClick={onOpenDeliveryAlert}
+                title={`มีการแจ้งเตือนก่อนวันส่งมอบ 1 วัน (${deliveryAlertCount} รายการ)`}
+                className="relative flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white text-xs font-black rounded-xl shadow-md shadow-rose-500/20 active:scale-95 transition-all cursor-pointer animate-pulse"
+              >
+                <Bell className="w-4 h-4 text-amber-200 animate-bounce" />
+                <span className="hidden sm:inline">เตือนส่งมอบ 1 วัน</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-white text-rose-700 text-[10px] font-black shadow-xs">
+                  {deliveryAlertCount}
+                </span>
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-300 ring-2 ring-white animate-ping" />
+              </button>
+            )}
 
             {/* Print A4 Report Button */}
             {onOpenPrintReport && (

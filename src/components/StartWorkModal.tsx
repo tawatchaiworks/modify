@@ -121,7 +121,7 @@ export const StartWorkModal: React.FC<StartWorkModalProps> = ({
                 <h3 className="text-base font-bold text-white">เริ่มปฏิบัติงาน (Start Work)</h3>
               </div>
               <p className="text-xs text-amber-100 mt-0.5">
-                กำหนดวันเริ่มงานของ Engineer เพื่อเปลี่ยนสถานะเป็น "รอดำเนินการ"
+                กำหนดวันเริ่มงานของ Engineer เพื่อเปลี่ยนสถานะเป็น "กำลังดำเนินการ"
               </p>
             </div>
           </div>

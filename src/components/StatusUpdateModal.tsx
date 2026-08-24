@@ -82,32 +82,84 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
     }
   };
 
+  const handleSelectWorkType = (type: 'GENERAL' | 'PAINTING') => {
+    setWorkType(type);
+    const newCalc = calculateEstimatedCompletion(baseDate, job.quantity, type);
+    setEstimatedReturnDate(newCalc.calculatedDate);
+  };
+
+  const handleSelectInspectionResult = (res: 'WAITING' | 'COMPLETE' | 'EDIT') => {
+    setInspectionResult(res);
+    const today = getCurrentDateFormatted();
+    if (res === 'COMPLETE') {
+      if (!inspectionDate) setInspectionDate(today);
+      setFinishStatus('FINISH');
+    } else if (res === 'EDIT') {
+      if (!inspectionDate) setInspectionDate(today);
+      setFinishStatus('IN_PROGRESS');
+      if (!engineerHandoverDate) setEngineerHandoverDate(today);
+    } else if (res === 'WAITING') {
+      if (finishStatus === 'FINISH') {
+        setFinishStatus('IN_PROGRESS');
+      }
+    }
+  };
+
+  const handleSelectFinishStatus = (status: ModifyJobItem['finishStatus']) => {
+    setFinishStatus(status);
+    const today = getCurrentDateFormatted();
+    if (status === 'FINISH') {
+      setInspectionResult('COMPLETE');
+      if (!inspectionDate) setInspectionDate(today);
+    } else if (status === 'IN_PROGRESS') {
+      if (!engineerHandoverDate) {
+        setEngineerHandoverDate(today);
+        const autoCalc = calculateEstimatedCompletion(today, job.quantity, workType);
+        if (!estimatedReturnDate) setEstimatedReturnDate(autoCalc.calculatedDate);
+      }
+      if (inspectionResult === 'COMPLETE') {
+        setInspectionResult('WAITING');
+      }
+    } else if (status === 'PENDING') {
+      if (inspectionResult === 'COMPLETE') {
+        setInspectionResult('WAITING');
+      }
+    }
+  };
+
   const handleQuickComplete = () => {
-    setInspectionDate(getCurrentDateFormatted());
+    const today = getCurrentDateFormatted();
+    setInspectionDate(today);
     setInspectionResult('COMPLETE');
     setFinishStatus('FINISH');
   };
 
   const handleQuickEdit = () => {
-    setInspectionDate(getCurrentDateFormatted());
+    const today = getCurrentDateFormatted();
+    setInspectionDate(today);
     setInspectionResult('EDIT');
     setFinishStatus('IN_PROGRESS');
+    if (!engineerHandoverDate) setEngineerHandoverDate(today);
   };
 
   const handleQuickWaiting = () => {
     setInspectionResult('WAITING');
+    if (finishStatus === 'FINISH') {
+      setFinishStatus('IN_PROGRESS');
+    }
   };
 
   const handleQuickHandover = () => {
     const today = getCurrentDateFormatted();
     setEngineerHandoverDate(today);
     setFinishStatus('IN_PROGRESS');
-    if (!estimatedReturnDate) {
-      const autoCalc = calculateEstimatedCompletion(today, job.quantity, workType);
-      setEstimatedReturnDate(autoCalc.calculatedDate);
-      if (!shipmentDate) {
-        setShipmentDate(autoCalc.calculatedDate);
-      }
+    const autoCalc = calculateEstimatedCompletion(today, job.quantity, workType);
+    setEstimatedReturnDate(autoCalc.calculatedDate);
+    if (!shipmentDate) {
+      setShipmentDate(autoCalc.calculatedDate);
+    }
+    if (inspectionResult === 'COMPLETE') {
+      setInspectionResult('WAITING');
     }
   };
 
@@ -213,10 +265,10 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
               <div className="flex items-center gap-1.5 pt-0.5">
                 <button
                   type="button"
-                  onClick={() => setWorkType('GENERAL')}
+                  onClick={() => handleSelectWorkType('GENERAL')}
                   className={`flex-1 py-2 px-2 text-xs font-bold rounded-xl border transition-all ${
                     workType !== 'PAINTING'
-                      ? 'bg-blue-600 text-white border-blue-600'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -224,10 +276,10 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWorkType('PAINTING')}
+                  onClick={() => handleSelectWorkType('PAINTING')}
                   className={`flex-1 py-2 px-2 text-xs font-bold rounded-xl border transition-all ${
                     workType === 'PAINTING'
-                      ? 'bg-purple-600 text-white border-purple-600'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -373,8 +425,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => setInspectionResult('WAITING')}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  onClick={() => handleSelectInspectionResult('WAITING')}
+                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                     inspectionResult === 'WAITING' || inspectionResult === 'PENDING' || !inspectionResult
                       ? 'bg-slate-700 text-white border-slate-700 shadow-xs ring-2 ring-slate-400/40'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -386,27 +438,21 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setInspectionResult('COMPLETE');
-                    if (!inspectionDate) setInspectionDate(getCurrentDateFormatted());
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  onClick={() => handleSelectInspectionResult('COMPLETE')}
+                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                     inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-400/40'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
                   <span>✅ COMPLETE</span>
-                  <span className="text-[10px] opacity-80 font-normal">ตรวจผ่าน (QC Complete)</span>
+                  <span className="text-[10px] opacity-80 font-normal">ตรวจผ่าน (QC Pass)</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setInspectionResult('EDIT');
-                    if (!inspectionDate) setInspectionDate(getCurrentDateFormatted());
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                  onClick={() => handleSelectInspectionResult('EDIT')}
+                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                     inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
                       ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-400/40'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -426,8 +472,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
               <button
                 type="button"
-                onClick={() => setFinishStatus('PENDING')}
-                className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => handleSelectFinishStatus('PENDING')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                   finishStatus === 'PENDING'
                     ? 'bg-slate-700 text-white border-slate-700 shadow-xs ring-2 ring-slate-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -439,28 +485,21 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  setFinishStatus('IN_PROGRESS');
-                  if (!engineerHandoverDate) {
-                    setEngineerHandoverDate(getCurrentDateFormatted());
-                  }
-                }}
-                className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => handleSelectFinishStatus('IN_PROGRESS')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                   finishStatus === 'IN_PROGRESS'
                     ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 <span>⚙️ IN_PROGRESS</span>
-                <span className="text-[10px] opacity-80 font-normal">กำลังดำเนินงาน</span>
+                <span className="text-[10px] opacity-80 font-normal">กำลังดำเนินการ</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => {
-                  setFinishStatus('FINISH');
-                }}
-                className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => handleSelectFinishStatus('FINISH')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                   finishStatus === 'FINISH'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -472,8 +511,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setFinishStatus('CANCELLED')}
-                className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                onClick={() => handleSelectFinishStatus('CANCELLED')}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 ${
                   finishStatus === 'CANCELLED'
                     ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -482,6 +521,56 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                 <span>🚫 CANCELLED</span>
                 <span className="text-[10px] opacity-80 font-normal">ยกเลิก</span>
               </button>
+            </div>
+          </div>
+
+          {/* Live Status Preview Banner */}
+          <div className="p-3 rounded-2xl bg-slate-900 text-white shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-300">สรุปสถานะที่จะบันทึก:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 font-medium">สถานะงาน:</span>
+                <span
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs shadow-2xs ${
+                    finishStatus === 'FINISH'
+                      ? 'bg-emerald-500 text-white ring-2 ring-emerald-400/40'
+                      : finishStatus === 'IN_PROGRESS'
+                      ? 'bg-amber-500 text-white ring-2 ring-amber-400/40'
+                      : finishStatus === 'CANCELLED'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {finishStatus === 'FINISH'
+                    ? '🟢 เสร็จสมบูรณ์ (FINISH)'
+                    : finishStatus === 'IN_PROGRESS'
+                    ? '🟡 กำลังดำเนินการ (IN PROGRESS)'
+                    : finishStatus === 'CANCELLED'
+                    ? '🚫 ยกเลิก (CANCELLED)'
+                    : '⚪ รอดำเนินการ (PENDING)'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 font-medium">ผล QC:</span>
+                <span
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs shadow-2xs ${
+                    inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  {inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
+                    ? '✅ ตรวจผ่าน (QC Pass)'
+                    : inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
+                    ? '⚠️ ส่งกลับแก้ไข (QC Edit)'
+                    : '⏳ รอตรวจ (Waiting)'}
+                </span>
+              </div>
             </div>
           </div>
 

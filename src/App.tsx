@@ -52,7 +52,8 @@ import { PrintJobTicket } from './components/PrintJobTicket';
 import { PrintStatusReportModal } from './components/PrintStatusReportModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
-import { formatDateDisplay } from './utils/formatters';
+import { DeliveryAlertModal } from './components/DeliveryAlertModal';
+import { formatDateDisplay, getOneDayDeliveryAlertJobs } from './utils/formatters';
 
 // Sample initial mock data for preview if not signed in yet
 const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
@@ -128,6 +129,42 @@ const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
     finishStatus: 'IN_PROGRESS',
     remarks: 'รอนำเข้ากระบวนการเชื่อม TIG',
   },
+  {
+    rowNumber: 4,
+    id: 'ECR-202608-0003',
+    requestDate: '2026-08-23',
+    requestMonth: 'สิงหาคม 2026',
+    requestTime: '10:15',
+    requester: 'ประสิทธิ์ วิศวกรโรงงาน',
+    sale: 'ธนากร มั่งมี',
+    saleSoNo: 'SO-2026-0520',
+    customer: 'บริษัท สยามออโต้พาร์ท แมนูแฟคเจอริ่ง จำกัด',
+    project: 'Inspection Jig Alignment Pin Set',
+    shipmentDate: '2026-08-25',
+    workDetails: [
+      'กลึงลดขนาดหัว Pin DIA 10 mm ลง 0.05 mm',
+      'ชุบแข็ง Induction Hardening ผิวหน้า',
+      'ขัดผิวละเอียด Ra 0.4',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ],
+    workDetailQuantities: ['10 ตัว', '10 ตัว', '10 ตัว', '', '', '', '', '', '', ''],
+    modifyDetails: 'ปรับลดขนาด Pin และเจียรผิวเรียบตามเกณฑ์ QC ล่าสุด',
+    quantity: '10 ตัว',
+    technician: 'ช่างเอกชัย (Machining)',
+    createdBy: 'tawatchai.works@gmail.com',
+    engineerHandoverDate: '2026-08-23',
+    estimatedReturnDate: '2026-08-25',
+    inspectionDate: '',
+    inspectionResult: 'WAITING',
+    finishStatus: 'IN_PROGRESS',
+    remarks: 'นัดส่งมอบวันพรุ่งนี้ เร่งส่งตรวจ QC ด่วน',
+  },
 ];
 
 export default function App() {
@@ -184,6 +221,19 @@ export default function App() {
     status: 'ALL',
   });
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
+  const [isDeliveryAlertOpen, setIsDeliveryAlertOpen] = useState(false);
+  const [hasAutoOpenedAlert, setHasAutoOpenedAlert] = useState(false);
+
+  // 1-Day Before Delivery Alert Jobs list
+  const deliveryAlertJobs = React.useMemo(() => getOneDayDeliveryAlertJobs(jobs), [jobs]);
+
+  // Auto popup on app load when 1-day delivery alert jobs exist
+  useEffect(() => {
+    if (deliveryAlertJobs.length > 0 && !hasAutoOpenedAlert) {
+      setIsDeliveryAlertOpen(true);
+      setHasAutoOpenedAlert(true);
+    }
+  }, [deliveryAlertJobs.length, hasAutoOpenedAlert]);
 
   // Confirmation Modal state (for workspace mutation safety)
   const [confirmModal, setConfirmModal] = useState<{
@@ -350,7 +400,7 @@ export default function App() {
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
   };
 
-  // Save new or edited job
+  // Save new or edited job from full modal form
   const handleSaveJob = async (jobData: ModifyJobItem) => {
     const isEdit = Boolean(jobData.rowNumber);
 
@@ -409,6 +459,30 @@ export default function App() {
       }
       setIsFormOpen(false);
       setEditingJob(null);
+    }
+  };
+
+  // Direct status & quick update job (StatusUpdateModal / StartWorkModal)
+  const handleDirectUpdateJob = async (jobData: ModifyJobItem) => {
+    // 1. Update state immediately so UI updates instantly
+    setJobs((prev) =>
+      prev.map((item) => (item.id === jobData.id || (item.rowNumber && item.rowNumber === jobData.rowNumber) ? jobData : item))
+    );
+
+    // 2. Sync to Google Sheet if connected
+    if (user && spreadsheet && jobData.rowNumber) {
+      setIsLoading(true);
+      try {
+        await updateModifyJobInSheet(spreadsheet.id, jobData.rowNumber, jobData, spreadsheet.sheetName);
+        showToast(`อัปเดตสถานะ ${jobData.id} (${jobData.finishStatus}) ลง Google Sheet เรียบร้อยแล้ว`, 'success');
+      } catch (err: any) {
+        console.error('Direct update error:', err);
+        showToast(err.message || 'อัปเดตสถานะใน Google Sheet ไม่สำเร็จ', 'error');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      showToast(`อัปเดตสถานะ ${jobData.id} (${jobData.finishStatus}) เรียบร้อยแล้ว`, 'success');
     }
   };
 
@@ -606,6 +680,8 @@ export default function App() {
         isLoading={isLoading}
         isAutoSyncEnabled={isAutoSyncEnabled}
         isAutoSyncing={isAutoSyncing}
+        deliveryAlertCount={deliveryAlertJobs.length}
+        onOpenDeliveryAlert={() => setIsDeliveryAlertOpen(true)}
         onToggleAutoSync={() => {
           setIsAutoSyncEnabled(!isAutoSyncEnabled);
           showToast(
@@ -701,7 +777,7 @@ export default function App() {
                       : selectedFilter === 'FINISH'
                       ? 'เฉพาะงานที่เสร็จสมบูรณ์แล้ว (FINISH)'
                       : selectedFilter === 'IN_PROGRESS'
-                      ? 'เฉพาะงานที่รอดำเนินการ / กับ Engineer'
+                      ? 'เฉพาะงานที่กำลังดำเนินการ / กับ Engineer'
                       : 'เฉพาะงานที่รอตรวจสอบ (WAITING)'}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -716,7 +792,7 @@ export default function App() {
                     : selectedFilter === 'FINISH'
                     ? 'คัดกรองเฉพาะงานที่มีสถานะงานเสร็จสมบูรณ์ 100%'
                     : selectedFilter === 'IN_PROGRESS'
-                    ? 'คัดกรองเฉพาะงานที่รอดำเนินการ / อยู่ระหว่างดำเนินงานของช่าง'
+                    ? 'คัดกรองเฉพาะงานที่กำลังดำเนินการ / อยู่ระหว่างดำเนินงานของช่าง'
                     : 'คัดกรองเฉพาะงานที่รอการตรวจเช็ค'}
                 </p>
               </div>
@@ -840,7 +916,7 @@ export default function App() {
         job={quickStatusJob}
         isLoading={isLoading}
         onSave={async (updatedJob) => {
-          await handleSaveJob(updatedJob);
+          await handleDirectUpdateJob(updatedJob);
           setQuickStatusJob(null);
         }}
         onClose={() => setQuickStatusJob(null)}
@@ -852,9 +928,8 @@ export default function App() {
         job={startWorkJob}
         isLoading={isLoading}
         onConfirmStart={async (updatedJob) => {
-          await handleSaveJob(updatedJob);
+          await handleDirectUpdateJob(updatedJob);
           setStartWorkJob(null);
-          showToast(`เริ่มปฏิบัติงาน Job ${updatedJob.id} เรียบร้อยแล้ว (เริ่มวันที่ ${formatDateDisplay(updatedJob.engineerHandoverDate)})`, 'success');
         }}
         onClose={() => setStartWorkJob(null)}
       />
@@ -885,6 +960,14 @@ export default function App() {
         onReformatHeaders={handleReformatHeaders}
         onSyncAllToSheet={handleSyncAllToSheet}
         onClose={() => setIsSheetSettingsOpen(false)}
+      />
+
+      {/* 1-Day Before Delivery Alert Popup Modal */}
+      <DeliveryAlertModal
+        isOpen={isDeliveryAlertOpen}
+        alertJobs={deliveryAlertJobs}
+        onClose={() => setIsDeliveryAlertOpen(false)}
+        onSelectJob={(job) => setQuickStatusJob(job)}
       />
 
       {/* Workspace Safety Confirmation Modal */}

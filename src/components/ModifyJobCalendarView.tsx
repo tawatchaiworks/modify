@@ -513,7 +513,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
             className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden font-medium"
           >
             <option value="ALL">สถานะทั้งหมด</option>
-            <option value="IN_PROGRESS">🟡 รอดำเนินการ (IN PROGRESS)</option>
+            <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (IN PROGRESS)</option>
             <option value="FINISH">🟢 เสร็จสิ้นแล้ว (FINISH)</option>
             <option value="COMPLETE">✅ ตรวจผ่าน (COMPLETE)</option>
             <option value="EDIT">⚠️ ส่งกลับแก้ไข (EDIT)</option>
@@ -635,7 +635,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                         const statusText = isFinish
                           ? 'เสร็จ (FINISH)'
                           : isInProgress
-                          ? 'กำลังทำ'
+                          ? 'กำลังดำเนินการ'
                           : 'รอดำเนินการ';
 
                         return (

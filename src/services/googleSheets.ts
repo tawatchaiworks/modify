@@ -605,10 +605,10 @@ export const itemToSheetRow = (item: ModifyJobItem): (string | number)[] => {
     ? 'CANCELLED (ยกเลิก)'
     : 'PENDING (รอดำเนินการ)';
 
-  const inspectionText = item.inspectionResult === 'PASS' 
-    ? 'PASS (ผ่าน)' 
-    : item.inspectionResult === 'REJECT' 
-    ? 'REJECT (ไม่ผ่าน / ต้องแก้ไข)' 
+  const inspectionText = item.inspectionResult === 'PASS' || item.inspectionResult === 'COMPLETE'
+    ? 'COMPLETE (ตรวจผ่าน)' 
+    : item.inspectionResult === 'REJECT' || item.inspectionResult === 'EDIT'
+    ? 'EDIT (ส่งกลับแก้ไข)' 
     : item.inspectionResult === 'WAITING' 
     ? 'WAITING (รอตรวจ)' 
     : item.inspectionResult || '-';

@@ -31,6 +31,7 @@ import {
   getUrgencyDisplay,
   URGENCY_OPTIONS,
   getWorkTypeDisplay,
+  isOneDayBeforeDelivery,
 } from '../utils/formatters';
 
 interface ModifyJobTableProps {
@@ -223,7 +224,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
             >
               <option value="ALL">ทั้งหมด</option>
               <option value="PENDING">Pending (รอดำเนินการ)</option>
-              <option value="IN_PROGRESS">In Progress (รอดำเนินการ/กับ Engineer)</option>
+              <option value="IN_PROGRESS">In Progress (กำลังดำเนินการ)</option>
               <option value="FINISH">Finish (เสร็จแล้ว)</option>
               <option value="CANCELLED">Cancelled (ยกเลิก)</option>
             </select>
@@ -493,6 +494,12 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                             <span className="block text-slate-500 text-[10px]">
                               Shipment: <strong className="text-slate-700 font-medium">{formatDateDisplay(job.shipmentDate)}</strong>
                             </span>
+                            {isOneDayBeforeDelivery(job) && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 text-[10px] font-black animate-pulse">
+                                <span>⚡</span>
+                                <span>ส่งมอบพรุ่งนี้ (เตือน 1 วัน)</span>
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -550,7 +557,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-2xs transition-all cursor-pointer"
                               >
                                 <Clock className="w-3 h-3 animate-pulse" />
-                                <span>รอดำเนินการ</span>
+                                <span>กำลังดำเนินการ</span>
                               </button>
                               {job.engineerHandoverDate && (
                                 <span className="text-[10px] text-amber-900 font-semibold mt-0.5">

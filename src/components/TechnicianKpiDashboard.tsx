@@ -395,9 +395,9 @@ export const TechnicianKpiDashboard: React.FC<TechnicianKpiDashboardProps> = ({
   const statusPieData = useMemo(() => {
     return [
       { name: 'เสร็จสมบูรณ์ (FINISH)', value: overallKpi.finished, color: '#3b82f6' },
-      { name: 'รอดำเนินการ (IN PROGRESS)', value: overallKpi.inProgress, color: '#f59e0b' },
+      { name: 'กำลังดำเนินการ (IN PROGRESS)', value: overallKpi.inProgress, color: '#f59e0b' },
       {
-        name: 'รอกำหนดวัน (PENDING)',
+        name: 'รอดำเนินการ (PENDING)',
         value: overallKpi.total - overallKpi.finished - overallKpi.inProgress,
         color: '#94a3b8',
       },

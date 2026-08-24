@@ -1082,10 +1082,10 @@ export const getJobProgressDetails = (
     statusDetailText = `เสร็จสิ้นแล้ว${job.inspectionDate ? ` (${formatDateDisplay(job.inspectionDate)})` : ''}`;
   } else if (isInProgress) {
     if (isStarted) {
-      statusBadgeText = 'รอดำเนินการ (In Progress)';
+      statusBadgeText = 'กำลังดำเนินการ (In Progress)';
       statusDetailText = `เริ่มปฏิบัติงานเมื่อ ${formatDateDisplay(startDate)} (ทำมาแล้ว ${elapsedWorkingDays} วันทำการ)`;
     } else {
-      statusBadgeText = 'รอดำเนินการ';
+      statusBadgeText = 'กำลังดำเนินการ';
       statusDetailText = 'รอกำหนดวันเริ่มงานของ Engineer';
     }
   }
@@ -1102,5 +1102,47 @@ export const getJobProgressDetails = (
     statusBadgeText,
     statusDetailText,
   };
+};
+
+/**
+ * Returns the effective delivery/shipment date ISO for a job
+ */
+export const getJobDeliveryDateISO = (job: ModifyJobItem): string => {
+  if (job.shipmentDate && job.shipmentDate.trim() !== '' && job.shipmentDate !== '-') {
+    const iso = normalizeToISODate(job.shipmentDate);
+    if (iso) return iso;
+  }
+  if (job.estimatedReturnDate && job.estimatedReturnDate.trim() !== '' && job.estimatedReturnDate !== '-') {
+    const iso = normalizeToISODate(job.estimatedReturnDate);
+    if (iso) return iso;
+  }
+  return '';
+};
+
+/**
+ * Checks whether today is exactly 1 day before the scheduled delivery/shipment date (due tomorrow)
+ */
+export const isOneDayBeforeDelivery = (job: ModifyJobItem, customTodayISO?: string): boolean => {
+  if (job.finishStatus === 'FINISH' || job.finishStatus === 'CANCELLED') return false;
+  const deliveryISO = getJobDeliveryDateISO(job);
+  if (!deliveryISO) return false;
+
+  const todayISO = customTodayISO || getCurrentDateFormatted();
+  try {
+    const today = new Date(todayISO + 'T00:00:00');
+    const target = new Date(deliveryISO + 'T00:00:00');
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays === 1;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Filters all jobs that are 1 day away from scheduled delivery date
+ */
+export const getOneDayDeliveryAlertJobs = (jobs: ModifyJobItem[], customTodayISO?: string): ModifyJobItem[] => {
+  return jobs.filter((job) => isOneDayBeforeDelivery(job, customTodayISO));
 };
 
