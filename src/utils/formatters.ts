@@ -1,4 +1,51 @@
-import { ModifyJobItem, CalendarEventItem, CalendarMilestoneType } from '../types';
+import { ModifyJobItem, CalendarEventItem, CalendarMilestoneType, JobUrgencyLevel } from '../types';
+
+export const URGENCY_OPTIONS: { value: JobUrgencyLevel; label: string; desc: string; badgeClass: string; icon: string }[] = [
+  {
+    value: 'NORMAL',
+    label: 'งานปกติ',
+    desc: 'ระยะเวลาผลิตและตรวจสอบตามเกณฑ์มาตรฐาน',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    icon: '☕',
+  },
+  {
+    value: 'URGENT',
+    label: 'งานด่วน',
+    desc: 'เร่งดำเนินการก่อนกำหนด เร่งประสานงานช่างและ QC',
+    badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-semibold',
+    icon: '⚡',
+  },
+  {
+    value: 'VERY_URGENT',
+    label: 'งานด่วนมาก',
+    desc: 'งานด่วนพิเศษสูงสุด (Hot Rush) ต้องทำทันทีและติดตามใกล้ชิด',
+    badgeClass: 'bg-rose-100 text-rose-900 border-rose-400 font-bold animate-pulse',
+    icon: '🚨',
+  },
+];
+
+export const parseUrgencyLevel = (input?: string): JobUrgencyLevel => {
+  if (!input) return 'NORMAL';
+  const str = String(input).trim().toUpperCase();
+  if (str.includes('VERY_URGENT') || str.includes('ด่วนมาก') || str.includes('HOT') || str.includes('EMERGENCY')) {
+    return 'VERY_URGENT';
+  }
+  if (str.includes('URGENT') || str.includes('ด่วน') || str.includes('RUSH') || str.includes('EXPRESS')) {
+    return 'URGENT';
+  }
+  return 'NORMAL';
+};
+
+export const getUrgencyDisplay = (urgency?: string): { label: string; badgeClass: string; icon: string; level: JobUrgencyLevel } => {
+  const level = parseUrgencyLevel(urgency);
+  const found = URGENCY_OPTIONS.find((o) => o.value === level) || URGENCY_OPTIONS[0];
+  return {
+    label: found.label,
+    badgeClass: found.badgeClass,
+    icon: found.icon,
+    level: found.value,
+  };
+};
 
 export const THAI_MONTHS = [
   'มกราคม',

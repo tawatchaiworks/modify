@@ -18,7 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
-import { formatDateDisplay, formatThaiFullDate } from '../utils/formatters';
+import { formatDateDisplay, formatThaiFullDate, getUrgencyDisplay } from '../utils/formatters';
 
 interface PrintStatusReportModalProps {
   jobs: ModifyJobItem[];
@@ -281,14 +281,19 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
             <div className="border-b-2 border-slate-900 pb-3 mb-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    FACTORY MASTER REPORT & QC SCHEDULE
-                  </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-black tracking-widest text-slate-950 uppercase bg-slate-100 px-3 py-0.5 rounded-lg border border-slate-300 font-mono">
+                      LUMENCRAFT
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      FACTORY MASTER REPORT & QC SCHEDULE
+                    </span>
+                  </div>
                   <h1 className="text-lg sm:text-xl font-black text-slate-900 mt-1 leading-tight">
                     {getStatusTitle(selectedStatus)}
                   </h1>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    ตารางบันทึกข้อมูลงานดัดแปลงแก้ไขและผลการตรวจเช็ค (Google Sheets Data Source)
+                    LUMENCRAFT • ตารางบันทึกข้อมูลงานดัดแปลงแก้ไขและผลการตรวจเช็ค (Google Sheets Data Source)
                   </p>
                 </div>
 
@@ -348,12 +353,13 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                     <tr className="bg-slate-800 text-white text-[11px] font-bold">
                       <th className="p-2 border-r border-slate-700 w-8 text-center">#</th>
                       <th className="p-2 border-r border-slate-700 min-w-[90px]">Job ID</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[80px]">ความเร่งด่วน</th>
                       <th className="p-2 border-r border-slate-700 min-w-[95px]">Sale SO No.</th>
                       <th className="p-2 border-r border-slate-700 min-w-[130px]">ลูกค้า & โครงการ</th>
                       <th className="p-2 border-r border-slate-700 min-w-[80px]">Sale</th>
                       <th className="p-2 border-r border-slate-700 min-w-[85px]">ช่างผู้ทำ</th>
                       <th className="p-2 border-r border-slate-700 min-w-[95px]">ผู้สร้างงาน</th>
-                      <th className="p-2 border-r border-slate-700 min-w-[75px]">ส่งมอบ Eng</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[85px]">ชื่อผู้รับผิดชอบ</th>
                       <th className="p-2 border-r border-slate-700 min-w-[75px]">กำหนดส่งคืน</th>
                       <th className="p-2 border-r border-slate-700 min-w-[75px]">ตรวจวันที่</th>
                       <th className="p-2 border-r border-slate-700 min-w-[85px] text-center">ผลตรวจ QC</th>
@@ -365,6 +371,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                       const isRowComplete = job.inspectionResult === 'COMPLETE' || job.inspectionResult === 'PASS';
                       const isRowEdit = job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT';
                       const isRowFinish = job.finishStatus === 'FINISH';
+                      const urgency = getUrgencyDisplay(job.urgencyLevel);
 
                       return (
                         <tr
@@ -378,6 +385,19 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                           </td>
                           <td className="p-2 border-r border-slate-200 font-mono font-bold text-blue-900 whitespace-nowrap">
                             {job.id}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 whitespace-nowrap">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold inline-block border ${
+                                urgency.level === 'VERY_URGENT'
+                                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                  : urgency.level === 'URGENT'
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {urgency.icon} {urgency.label}
+                            </span>
                           </td>
                           <td className="p-2 border-r border-slate-200 font-mono font-bold text-slate-800 whitespace-nowrap">
                             {job.saleSoNo || '-'}

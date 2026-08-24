@@ -1,5 +1,7 @@
 export type InspectionResult = 'WAITING' | 'COMPLETE' | 'EDIT' | 'PASS' | 'REJECT' | 'PENDING' | '';
 
+export type JobUrgencyLevel = 'NORMAL' | 'URGENT' | 'VERY_URGENT';
+
 export interface ModifyJobItem {
   rowNumber?: number; // 1-indexed row number in Google Sheet (row 2, 3...)
   id: string; // generated unique code e.g. MOD-2026-0001
@@ -16,6 +18,7 @@ export interface ModifyJobItem {
   workDetailQuantities?: (number | string)[]; // จำนวนชิ้นของแต่ละรายการ 10 บรรทัด (array of 10 quantities)
   workDetailsRaw?: string; // consolidated raw string with line breaks
   modifyDetails: string; // รายละเอียดที่ให้ Modify
+  urgencyLevel?: JobUrgencyLevel | string; // สถานะความเร่งด่วน: NORMAL (งานปกติ) | URGENT (งานด่วน) | VERY_URGENT (งานด่วนมาก)
   workType?: 'GENERAL' | 'PAINTING' | string; // ประเภทงาน: ทั่วไป หรือ ทำสี
   quantity: number | string; // จำนวน
   technician?: string; // ช่างผู้ทำ / ช่างผู้รับผิดชอบ
@@ -38,7 +41,7 @@ export interface GoogleSpreadsheetInfo {
   sheetName: string;
 }
 
-export type ViewMode = 'table' | 'cards' | 'calendar' | 'form' | 'stats';
+export type ViewMode = 'table' | 'cards' | 'calendar' | 'kpi' | 'form' | 'stats';
 
 export type CalendarViewType = 'day' | 'week' | 'month';
 

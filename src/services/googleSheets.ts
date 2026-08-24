@@ -15,8 +15,9 @@ export const SHEET_HEADERS = [
   'รายละเอียดงาน 10 บรรทัด',
   'รายละเอียดที่ให้ Modify',
   'จำนวน',
+  'ระดับความเร่งด่วน',
   'ช่างผู้ทำ',
-  'ส่งมอบชิ้นงานให้ engineer วันที่',
+  'ชื่อผู้รับผิดชอบ',
   'ประมาณการส่งมอบคืนวันที่',
   'ตรวจสอบวันที่',
   'ผลการตรวจสอบ (PASS OR REJECT)',
@@ -25,47 +26,152 @@ export const SHEET_HEADERS = [
   'Timestamp',
 ];
 
+export const DEFAULT_PRIMARY_SPREADSHEET_ID = '1o6f9o5CfdnGoYi9dzv_G8rJi45bC-cKosq5jtyz8KA0';
 const DEFAULT_SHEET_NAME = 'modify';
 const DEFAULT_SPREADSHEET_TITLE = 'ตาราง modify';
 
+export const STORAGE_KEY_SPREADSHEET_ID = 'modify_system_connected_sheet_id';
+export const STORAGE_KEY_SPREADSHEET_TITLE = 'modify_system_connected_sheet_title';
+
+export const getSavedSpreadsheetInfo = (): { id: string; name?: string } | null => {
+  try {
+    const id = localStorage.getItem(STORAGE_KEY_SPREADSHEET_ID) || DEFAULT_PRIMARY_SPREADSHEET_ID;
+    const name = localStorage.getItem(STORAGE_KEY_SPREADSHEET_TITLE) || DEFAULT_SPREADSHEET_TITLE;
+    if (id) return { id, name };
+  } catch (e) {
+    console.warn('Cannot read localStorage', e);
+  }
+  return { id: DEFAULT_PRIMARY_SPREADSHEET_ID, name: DEFAULT_SPREADSHEET_TITLE };
+};
+
+export const saveSpreadsheetInfo = (info: GoogleSpreadsheetInfo | null) => {
+  try {
+    if (info?.id) {
+      localStorage.setItem(STORAGE_KEY_SPREADSHEET_ID, info.id);
+      localStorage.setItem(STORAGE_KEY_SPREADSHEET_TITLE, info.name || DEFAULT_SPREADSHEET_TITLE);
+    }
+  } catch (e) {
+    console.warn('Cannot write localStorage', e);
+  }
+};
+
 /**
- * Searches user's Google Drive for a spreadsheet named "ตาราง modify" or "modify"
+ * Searches user's Google Drive or saved ID for a spreadsheet named "ตาราง modify" or "modify"
+ * Prioritizes the main shared spreadsheet 1o6f9o5CfdnGoYi9dzv_G8rJi45bC-cKosq5jtyz8KA0
  */
 export const findExistingSpreadsheet = async (): Promise<GoogleSpreadsheetInfo | null> => {
   const token = await getAccessToken();
   if (!token) throw new Error('No access token available. Please sign in.');
 
-  const query = encodeURIComponent(
-    "mimeType='application/vnd.google-apps.spreadsheet' and (name='ตาราง modify' or name='modify' or name contains 'Modify') and trashed=false"
-  );
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,webViewLink)&orderBy=modifiedTime desc&pageSize=10`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+  // 1. Check URL parameters for explicit sheet ID
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSheetId = urlParams.get('sheetId') || urlParams.get('sheet');
+    if (urlSheetId) {
+      const sheetMeta = await getSpreadsheetMetadata(urlSheetId);
+      if (sheetMeta) {
+        saveSpreadsheetInfo(sheetMeta);
+        return sheetMeta;
+      }
     }
-  );
+  } catch (e) {
+    console.warn('Could not parse URL params', e);
+  }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData?.error?.message || `Failed to search Google Drive: ${response.statusText}`
+  // 2. Try primary default spreadsheet (1o6f9o5CfdnGoYi9dzv_G8rJi45bC-cKosq5jtyz8KA0)
+  try {
+    const primaryMeta = await getSpreadsheetMetadata(DEFAULT_PRIMARY_SPREADSHEET_ID);
+    if (primaryMeta) {
+      saveSpreadsheetInfo(primaryMeta);
+      return primaryMeta;
+    }
+  } catch (e) {
+    console.warn('Primary default spreadsheet not directly accessible, trying saved/drive search', e);
+  }
+
+  // 3. Check saved ID in local storage
+  const saved = getSavedSpreadsheetInfo();
+  if (saved?.id && saved.id !== DEFAULT_PRIMARY_SPREADSHEET_ID) {
+    try {
+      const sheetMeta = await getSpreadsheetMetadata(saved.id);
+      if (sheetMeta) {
+        return sheetMeta;
+      }
+    } catch (e) {
+      console.warn('Saved sheet ID not accessible, falling back to Drive search', e);
+    }
+  }
+
+  // 4. Search Google Drive (including files shared with user)
+  try {
+    const query = encodeURIComponent(
+      "mimeType='application/vnd.google-apps.spreadsheet' and (name='ตาราง modify' or name='modify' or name contains 'Modify') and trashed=false"
     );
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,webViewLink)&orderBy=modifiedTime desc&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.files && data.files.length > 0) {
+        const file = data.files[0];
+        const sheetInfo: GoogleSpreadsheetInfo = {
+          id: file.id,
+          name: file.name,
+          url: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}/edit`,
+          sheetName: DEFAULT_SHEET_NAME,
+        };
+        saveSpreadsheetInfo(sheetInfo);
+        return sheetInfo;
+      }
+    }
+  } catch (e) {
+    console.warn('Drive search failed', e);
   }
 
-  const data = await response.json();
-  if (data.files && data.files.length > 0) {
-    const file = data.files[0];
-    return {
-      id: file.id,
-      name: file.name,
-      url: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}/edit`,
-      sheetName: DEFAULT_SHEET_NAME,
-    };
-  }
+  // Fallback: return default info
+  return {
+    id: DEFAULT_PRIMARY_SPREADSHEET_ID,
+    name: DEFAULT_SPREADSHEET_TITLE,
+    url: `https://docs.google.com/spreadsheets/d/${DEFAULT_PRIMARY_SPREADSHEET_ID}/edit`,
+    sheetName: DEFAULT_SHEET_NAME,
+  };
+};
 
-  return null;
+/**
+ * Get spreadsheet details by ID
+ */
+export const getSpreadsheetMetadata = async (spreadsheetId: string): Promise<GoogleSpreadsheetInfo | null> => {
+  const token = await getAccessToken();
+  if (!token) throw new Error('No access token available');
+
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=properties.title,sheets.properties.title`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  const title = data.properties?.title || 'ตาราง modify';
+  const availableSheets: { properties: { title: string } }[] = data.sheets || [];
+  
+  // Look for tab named modify, ตาราง modify, or first sheet
+  const foundSheet = availableSheets.find(
+    (s) => s.properties?.title?.toLowerCase() === 'modify' || s.properties?.title?.includes('modify') || s.properties?.title?.includes('ตาราง')
+  ) || availableSheets[0];
+
+  const firstSheet = foundSheet?.properties?.title || DEFAULT_SHEET_NAME;
+
+  return {
+    id: spreadsheetId,
+    name: title,
+    url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+    sheetName: firstSheet,
+  };
 };
 
 /**
@@ -131,7 +237,7 @@ export const setupSheetHeaders = async (spreadsheetId: string, sheetTitle = DEFA
   if (!token) throw new Error('No access token available');
 
   // 1. Write Header Values
-  const range = `${sheetTitle}!A1:U1`;
+  const range = `${sheetTitle}!A1:V1`;
   const updateRes = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(
       range
@@ -250,7 +356,7 @@ export const fetchModifyJobsFromSheet = async (
   );
   const actualSheetTitle = foundSheet ? foundSheet.properties.title : availableSheets[0]?.properties?.title || sheetTitle;
 
-  const range = `${actualSheetTitle}!A2:U`;
+  const range = `${actualSheetTitle}!A1:V`;
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
     {
@@ -264,10 +370,34 @@ export const fetchModifyJobsFromSheet = async (
   }
 
   const data = await response.json();
-  const rows: (string | number)[][] = data.values || [];
+  const allRows: (string | number)[][] = data.values || [];
 
-  return rows.map((row, index) => {
-    const rowNumber = index + 2; // Row 1 is header, data starts at row 2
+  if (allRows.length === 0) return [];
+
+  // Check if first row is header row
+  let hasHeader = false;
+  let headerRow: string[] = [];
+  const firstColStr = String(allRows[0]?.[0] || '').toLowerCase();
+  if (firstColStr.includes('job') || firstColStr.includes('id') || firstColStr.includes('ลำดับ')) {
+    hasHeader = true;
+    headerRow = allRows[0].map((c) => String(c || '').toLowerCase().trim());
+  }
+
+  const dataRows = hasHeader ? allRows.slice(1) : allRows;
+
+  // Header column index map (if headers present)
+  let urgencyColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('เร่งด่วน') || h.includes('urgency') || h.includes('ความด่วน') || (h.includes('ด่วน') && !h.includes('ส่งมอบ'))) : -1;
+  let techColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ช่าง') || h.includes('technician')) : -1;
+  let handoverColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ชื่อผู้รับผิดชอบ') || h.includes('ผู้รับผิดชอบ') || (h.includes('ส่งมอบ') && (h.includes('engineer') || h.includes('ชิ้นงาน')))) : -1;
+  let estReturnColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ประมาณการ')) : -1;
+  let inspectionDateColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ตรวจสอบวันที่')) : -1;
+  let qcColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('pass') || h.includes('ผลการตรวจ')) : -1;
+  let finishColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('finish') || h.includes('เสร็จ')) : -1;
+  let remarksColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('remarks') || h.includes('หมายเหตุ')) : -1;
+  let timestampColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('timestamp') || h.includes('เวลา')) : -1;
+
+  return dataRows.map((row, index) => {
+    const rowNumber = hasHeader ? index + 2 : index + 1; // 1-based row number
     const id = String(row[0] || `MOD-${1000 + index}`);
     const requestDate = String(row[1] || '');
     const requestMonth = String(row[2] || '');
@@ -297,7 +427,6 @@ export const fetchModifyJobsFromSheet = async (
       const matchQty = cleaned.match(/(?:\[จำนวน[:\s]*([^\]]+)\]|\(จำนวน[:\s]*([^\)]+)\)|\[([^\]]+)\]|\(([0-9]+(?:\s*ชิ้น|\s*pcs)?)\))/i);
       if (matchQty) {
         qty = (matchQty[1] || matchQty[2] || matchQty[3] || matchQty[4] || '').trim();
-        // Remove the matched quantity tag from the description text
         cleaned = cleaned.replace(matchQty[0], '').trim();
       }
 
@@ -317,8 +446,7 @@ export const fetchModifyJobsFromSheet = async (
     const modifyDetails = String(row[11] || '');
     const quantity = row[12] !== undefined ? row[12] : '';
     
-    // Check if row has new 21 columns format (with technician at col 13)
-    // or legacy 20 columns format (where col 13 was engineerHandoverDate)
+    let rawUrgency = '';
     let technician = '';
     let engineerHandoverDate = '';
     let estimatedReturnDate = '';
@@ -328,28 +456,65 @@ export const fetchModifyJobsFromSheet = async (
     let remarks = '';
     let updatedAt = '';
 
-    const col13Str = String(row[13] || '').trim();
-    const isDatePattern = /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$/.test(col13Str);
-
-    if (row.length >= 21 || (!isDatePattern && col13Str !== '')) {
-      technician = col13Str;
-      engineerHandoverDate = String(row[14] || '');
-      estimatedReturnDate = String(row[15] || '');
-      inspectionDate = String(row[16] || '');
-      rawInspectionResult = String(row[17] || '').toUpperCase();
-      rawFinish = String(row[18] || '').toUpperCase();
-      remarks = String(row[19] || '');
-      updatedAt = String(row[20] || '');
+    if (hasHeader && urgencyColIdx !== -1) {
+      rawUrgency = String(row[urgencyColIdx] || '');
+      technician = techColIdx !== -1 ? String(row[techColIdx] || '') : '';
+      engineerHandoverDate = handoverColIdx !== -1 ? String(row[handoverColIdx] || '') : '';
+      estimatedReturnDate = estReturnColIdx !== -1 ? String(row[estReturnColIdx] || '') : '';
+      inspectionDate = inspectionDateColIdx !== -1 ? String(row[inspectionDateColIdx] || '') : '';
+      rawInspectionResult = qcColIdx !== -1 ? String(row[qcColIdx] || '').toUpperCase() : '';
+      rawFinish = finishColIdx !== -1 ? String(row[finishColIdx] || '').toUpperCase() : '';
+      remarks = remarksColIdx !== -1 ? String(row[remarksColIdx] || '') : '';
+      updatedAt = timestampColIdx !== -1 ? String(row[timestampColIdx] || '') : '';
     } else {
-      // Legacy 20 cols
-      technician = '';
-      engineerHandoverDate = col13Str;
-      estimatedReturnDate = String(row[14] || '');
-      inspectionDate = String(row[15] || '');
-      rawInspectionResult = String(row[16] || '').toUpperCase();
-      rawFinish = String(row[17] || '').toUpperCase();
-      remarks = String(row[18] || '');
-      updatedAt = String(row[19] || '');
+      // Fallback row layout detection: 22 cols (Standard with Urgency at col 13), 21 cols, or 20 cols (legacy)
+      const col13Str = String(row[13] || '').trim();
+      const col14Str = String(row[14] || '').trim();
+      const isUrgencyWord = col13Str.includes('ด่วน') || col13Str.includes('ปกติ') || col13Str.toUpperCase().includes('URGENT') || col13Str.toUpperCase().includes('NORMAL');
+      const isDatePattern13 = /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$/.test(col13Str);
+
+      if (row.length >= 22 || isUrgencyWord) {
+        // 22 cols: 13: urgency, 14: technician, 15: handover, 16: estReturn, 17: inspectionDate, 18: qc, 19: finish, 20: remarks, 21: timestamp
+        rawUrgency = col13Str;
+        technician = col14Str;
+        engineerHandoverDate = String(row[15] || '');
+        estimatedReturnDate = String(row[16] || '');
+        inspectionDate = String(row[17] || '');
+        rawInspectionResult = String(row[18] || '').toUpperCase();
+        rawFinish = String(row[19] || '').toUpperCase();
+        remarks = String(row[20] || '');
+        updatedAt = String(row[21] || '');
+      } else if (row.length >= 21 || (!isDatePattern13 && col13Str !== '')) {
+        // 21 cols without urgency: 13: technician, 14: handover, 15: estReturn...
+        technician = col13Str;
+        engineerHandoverDate = col14Str;
+        estimatedReturnDate = String(row[15] || '');
+        inspectionDate = String(row[16] || '');
+        rawInspectionResult = String(row[17] || '').toUpperCase();
+        rawFinish = String(row[18] || '').toUpperCase();
+        remarks = String(row[19] || '');
+        updatedAt = String(row[20] || '');
+      } else {
+        // Legacy 20 cols
+        engineerHandoverDate = col13Str;
+        estimatedReturnDate = col14Str;
+        inspectionDate = String(row[15] || '');
+        rawInspectionResult = String(row[16] || '').toUpperCase();
+        rawFinish = String(row[17] || '').toUpperCase();
+        remarks = String(row[18] || '');
+        updatedAt = String(row[19] || '');
+      }
+    }
+
+    // Determine Urgency Level
+    let urgencyLevel: 'NORMAL' | 'URGENT' | 'VERY_URGENT' = 'NORMAL';
+    const upperUrgency = rawUrgency.toUpperCase();
+    if (upperUrgency.includes('VERY_URGENT') || upperUrgency.includes('ด่วนมาก') || upperUrgency.includes('HOT')) {
+      urgencyLevel = 'VERY_URGENT';
+    } else if (upperUrgency.includes('URGENT') || upperUrgency.includes('ด่วน') || upperUrgency.includes('RUSH')) {
+      urgencyLevel = 'URGENT';
+    } else {
+      urgencyLevel = 'NORMAL';
     }
 
     let inspectionResult: ModifyJobItem['inspectionResult'] = '';
@@ -384,6 +549,7 @@ export const fetchModifyJobsFromSheet = async (
       workDetailsRaw,
       modifyDetails,
       quantity,
+      urgencyLevel,
       technician,
       engineerHandoverDate,
       estimatedReturnDate,
@@ -420,6 +586,12 @@ export const itemToSheetRow = (item: ModifyJobItem): (string | number)[] => {
     formattedWorkDetails = item.workDetailsRaw;
   }
 
+  const urgencyText = item.urgencyLevel === 'VERY_URGENT'
+    ? 'งานด่วนมาก'
+    : item.urgencyLevel === 'URGENT'
+    ? 'งานด่วน'
+    : 'งานปกติ';
+
   const finishText = item.finishStatus === 'FINISH' 
     ? 'FINISH (เสร็จสมบูรณ์)' 
     : item.finishStatus === 'IN_PROGRESS' 
@@ -450,6 +622,7 @@ export const itemToSheetRow = (item: ModifyJobItem): (string | number)[] => {
     formattedWorkDetails,
     item.modifyDetails || '',
     item.quantity !== undefined ? item.quantity : '',
+    urgencyText,
     item.technician || '',
     item.engineerHandoverDate || '',
     item.estimatedReturnDate || '',
@@ -473,7 +646,7 @@ export const appendModifyJobToSheet = async (
   if (!token) throw new Error('No access token available. Please sign in.');
 
   const rowValues = itemToSheetRow(item);
-  const range = `${sheetTitle}!A:U`;
+  const range = `${sheetTitle}!A:V`;
 
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(
@@ -524,7 +697,7 @@ export const updateModifyJobInSheet = async (
   }
 
   const rowValues = itemToSheetRow(item);
-  const range = `${sheetTitle}!A${rowNumber}:U${rowNumber}`;
+  const range = `${sheetTitle}!A${rowNumber}:V${rowNumber}`;
 
   const response = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(

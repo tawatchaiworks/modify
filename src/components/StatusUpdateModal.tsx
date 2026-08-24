@@ -12,12 +12,14 @@ import {
   Zap,
   Palette,
 } from 'lucide-react';
-import { ModifyJobItem } from '../types';
+import { ModifyJobItem, JobUrgencyLevel } from '../types';
 import {
   getCurrentDateFormatted,
   calculateEstimatedCompletion,
   detectIsPaintingJob,
   formatDateDisplay,
+  parseUrgencyLevel,
+  URGENCY_OPTIONS,
 } from '../utils/formatters';
 
 interface StatusUpdateModalProps {
@@ -37,6 +39,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
 }) => {
   const [technician, setTechnician] = useState('');
   const [workType, setWorkType] = useState<'GENERAL' | 'PAINTING' | string>('GENERAL');
+  const [urgencyLevel, setUrgencyLevel] = useState<JobUrgencyLevel>('NORMAL');
   const [shipmentDate, setShipmentDate] = useState('');
   const [engineerHandoverDate, setEngineerHandoverDate] = useState('');
   const [estimatedReturnDate, setEstimatedReturnDate] = useState('');
@@ -49,6 +52,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
     if (job) {
       setTechnician(job.technician || '');
       setWorkType(job.workType || (detectIsPaintingJob(job.modifyDetails) ? 'PAINTING' : 'GENERAL'));
+      setUrgencyLevel(parseUrgencyLevel(job.urgencyLevel));
       setShipmentDate(job.shipmentDate || '');
       setEngineerHandoverDate(job.engineerHandoverDate || '');
       setEstimatedReturnDate(job.estimatedReturnDate || '');
@@ -113,6 +117,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
       ...job,
       technician,
       workType,
+      urgencyLevel,
       shipmentDate,
       engineerHandoverDate,
       estimatedReturnDate,
@@ -232,11 +237,42 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
             </div>
           </div>
 
+          {/* ระดับความเร่งด่วน (Urgency Status) */}
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-700">สถานะความเร่งด่วน:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {URGENCY_OPTIONS.map((opt) => {
+                  const isSelected = (urgencyLevel || 'NORMAL') === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setUrgencyLevel(opt.value)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        isSelected
+                          ? opt.value === 'VERY_URGENT'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : opt.value === 'URGENT'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'bg-slate-700 text-white shadow-xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{opt.icon}</span>
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  ส่งมอบ/เริ่มปฏิบัติงาน วันที่
+                  ชื่อผู้รับผิดชอบ / วันที่ส่งมอบงาน
                 </label>
                 <div className="flex items-center gap-1">
                   <button

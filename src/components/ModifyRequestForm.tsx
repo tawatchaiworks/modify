@@ -34,6 +34,8 @@ import {
   PAINTING_WORKING_DAYS_RULES,
   detectIsPaintingJob,
   formatDateDisplay,
+  URGENCY_OPTIONS,
+  parseUrgencyLevel,
 } from '../utils/formatters';
 
 interface ModifyRequestFormProps {
@@ -72,6 +74,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
     workDetailQuantities: Array(10).fill(''),
     modifyDetails: '',
     workType: 'GENERAL',
+    urgencyLevel: 'NORMAL',
     quantity: 1,
     technician: '',
     createdBy: activeLoginEmail,
@@ -109,9 +112,11 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
         paddedWorkDetailQuantities.push('');
       }
       const initialWorkType = initialData.workType || (detectIsPaintingJob(initialData.modifyDetails) ? 'PAINTING' : 'GENERAL');
+      const initialUrgency = parseUrgencyLevel(initialData.urgencyLevel);
       setFormData({
         ...initialData,
         workType: initialWorkType,
+        urgencyLevel: initialUrgency,
         workDetails: paddedWorkDetails.slice(0, 10),
         workDetailQuantities: paddedWorkDetailQuantities.slice(0, 10),
       });
@@ -146,6 +151,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
         workDetailQuantities: Array(10).fill(''),
         modifyDetails: '',
         workType: 'GENERAL',
+        urgencyLevel: 'NORMAL',
         quantity: 1,
         technician: '',
         createdBy: activeLoginEmail,
@@ -543,6 +549,45 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                 </div>
               </div>
 
+              {/* ระดับความเร่งด่วน (Urgency Level / Status) */}
+              <div className="sm:col-span-2 lg:col-span-3 bg-white p-3 rounded-xl border border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-0.5 flex items-center gap-1.5">
+                      <span>สถานะระดับความเร่งด่วน (Urgency Status)</span>
+                      <span className="text-[10px] font-semibold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">Google Sheet</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      ระบุสถานะงานปกติ งานด่วน หรือด่วนมาก เพื่อซิงค์กับ Google Sheet และจัดการคิวงาน
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {URGENCY_OPTIONS.map((opt) => {
+                      const isSelected = (formData.urgencyLevel || 'NORMAL') === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, urgencyLevel: opt.value })}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            isSelected
+                              ? opt.value === 'VERY_URGENT'
+                                ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-600/30'
+                                : opt.value === 'URGENT'
+                                ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-500/30'
+                                : 'bg-slate-700 text-white shadow-xs ring-2 ring-slate-700/30'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-slate-700">
@@ -844,10 +889,10 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                 </div>
               </div>
 
-              {/* ส่งมอบชิ้นงานให้ engineer วันที่ */}
+              {/* ชื่อผู้รับผิดชอบ / ส่งมอบงานให้ engineer วันที่ */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ส่งมอบชิ้นงานให้ engineer วันที่
+                  ชื่อผู้รับผิดชอบ / ส่งมอบงาน วันที่
                 </label>
                 <input
                   type="date"

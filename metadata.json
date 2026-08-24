@@ -1,6 +1,6 @@
 {
-  "name": "Modify Job Request System",
-  "description": "ระบบจัดการและบันทึกข้อมูลคำของาน Modify เชื่อมต่อกับ Google Sheets",
+  "name": "LUMENCRAFT - Modify Job System",
+  "description": "LUMENCRAFT ระบบจัดการและบันทึกข้อมูลคำของาน Modify เชื่อมต่อกับ Google Sheets",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

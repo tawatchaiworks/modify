@@ -24,7 +24,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
-import { formatDateDisplay, formatThaiFullDate } from '../utils/formatters';
+import { formatDateDisplay, formatThaiFullDate, getUrgencyDisplay } from '../utils/formatters';
 
 interface PrintJobTicketProps {
   job: ModifyJobItem | null;
@@ -220,25 +220,28 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
             <div className="border-b-2 border-slate-900 pb-4 mb-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-black tracking-widest text-slate-950 uppercase bg-slate-100 px-3 py-1 rounded-lg border border-slate-300 font-mono">
+                      LUMENCRAFT
+                    </span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
                       FACTORY WORK ORDER & QC DOCUMENT
                     </span>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      ISO A4 STANDARD
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">
+                      ISO A4
                     </span>
                   </div>
                   <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-1 leading-tight">
                     ใบคำของานดัดแปลงแก้ไข (Modify Job Request)
                   </h1>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    ระบบบันทึกตาราง Modify & QC Tracking (Google Sheets Database)
+                    LUMENCRAFT • ระบบบันทึกตาราง Modify & QC Tracking (Google Sheets Database)
                   </p>
                 </div>
 
                 {/* Top Right: JOB ID & Barcode simulation */}
                 <div className="text-right border-2 border-slate-900 rounded-xl p-2.5 bg-slate-50 shrink-0 min-w-[170px]">
-                  <span className="text-[10px] font-bold text-slate-500 block uppercase">JOB ID / รหัสงาน</span>
+                  <span className="text-[10px] font-bold text-slate-500 block uppercase">LUMENCRAFT JOB ID</span>
                   <span className="text-lg font-mono font-black text-blue-950 block">{job.id}</span>
                   <div className="flex items-center justify-end gap-1.5 mt-0.5 text-[10px] text-slate-500 font-mono">
                     {job.saleSoNo && <span className="font-bold text-slate-800">SO: {job.saleSoNo}</span>}
@@ -248,13 +251,31 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
               </div>
             </div>
 
-            {/* Official Status Stamp / Seal */}
+            {/* Official Status Stamp / Seal & Urgency */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-300 rounded-xl mb-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className={`px-3 py-1.5 rounded-lg border-2 font-black text-xs uppercase tracking-wider flex items-center gap-2 ${statusStamp.color}`}>
                   <span className={`w-2.5 h-2.5 rounded-full ${statusStamp.dot} animate-pulse`} />
                   <span>{statusStamp.text}</span>
                 </div>
+                {/* Urgency Badge */}
+                {(() => {
+                  const urgency = getUrgencyDisplay(job.urgencyLevel);
+                  return (
+                    <div
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 ${
+                        urgency.level === 'VERY_URGENT'
+                          ? 'bg-rose-600 text-white border-rose-700 shadow-sm animate-pulse'
+                          : urgency.level === 'URGENT'
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300'
+                      }`}
+                    >
+                      <span>{urgency.icon}</span>
+                      <span>สถานะ: {urgency.label}</span>
+                    </div>
+                  );
+                })()}
                 <div>
                   <span className="text-xs font-bold text-slate-900 block">{statusStamp.subtext}</span>
                   <span className="text-[11px] text-slate-500">
@@ -350,7 +371,7 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
               </div>
 
               <div className="space-y-0.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase block">11. ส่งมอบ Engineer วันที่:</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">11. ชื่อผู้รับผิดชอบ / ส่งมอบงาน:</span>
                 <span className="font-bold text-slate-900 text-sm block">
                   {formatDateDisplay(job.engineerHandoverDate)}
                 </span>

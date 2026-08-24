@@ -28,6 +28,8 @@ import {
   detectIsPaintingJob,
   getJobProgressDetails,
   calculateWorkingDaysElapsed,
+  getUrgencyDisplay,
+  URGENCY_OPTIONS,
 } from '../utils/formatters';
 
 interface ModifyJobTableProps {
@@ -56,6 +58,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [inspectionFilter, setInspectionFilter] = useState('ALL');
+  const [urgencyFilter, setUrgencyFilter] = useState('ALL');
   const [sortField, setSortField] = useState<'id' | 'requestDate' | 'customer' | 'shipmentDate'>('id');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -80,6 +83,12 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
         statusFilter === 'ALL' ||
         job.finishStatus === statusFilter;
 
+      // Urgency filter
+      const currentUrgency = job.urgencyLevel || 'NORMAL';
+      const matchUrgency =
+        urgencyFilter === 'ALL' ||
+        currentUrgency === urgencyFilter;
+
       // Inspection filter
       const matchInspection =
         inspectionFilter === 'ALL' ||
@@ -87,7 +96,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
         (inspectionFilter === 'EDIT' && (job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT')) ||
         (inspectionFilter === 'WAITING' && (job.inspectionResult === 'WAITING' || job.inspectionResult === 'PENDING' || !job.inspectionResult));
 
-      return matchSearch && matchStatus && matchInspection;
+      return matchSearch && matchStatus && matchUrgency && matchInspection;
     }).sort((a, b) => {
       let valA = a[sortField] || '';
       let valB = b[sortField] || '';
@@ -97,7 +106,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
         return valA < valB ? 1 : -1;
       }
     });
-  }, [jobs, searchTerm, statusFilter, inspectionFilter, sortField, sortDirection]);
+  }, [jobs, searchTerm, statusFilter, urgencyFilter, inspectionFilter, sortField, sortDirection]);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -123,8 +132,9 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
       'Shipment Date',
       'รายละเอียดที่ให้ Modify',
       'จำนวน',
+      'ระดับความเร่งด่วน',
       'ช่างผู้ทำ',
-      'ส่งมอบ Engineer วันที่',
+      'ชื่อผู้รับผิดชอบ',
       'ประมาณการส่งคืนวันที่',
       'ตรวจสอบวันที่',
       'ผลการตรวจสอบ',
@@ -132,27 +142,31 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
       'หมายเหตุ',
     ];
 
-    const rows = filteredJobs.map((j) => [
-      `"${j.id}"`,
-      `"${j.requestDate || ''}"`,
-      `"${j.requestMonth || ''}"`,
-      `"${j.requestTime || ''}"`,
-      `"${j.requester || ''}"`,
-      `"${j.sale || ''}"`,
-      `"${j.saleSoNo || ''}"`,
-      `"${j.customer || ''}"`,
-      `"${j.project || ''}"`,
-      `"${j.shipmentDate || ''}"`,
-      `"${(j.modifyDetails || '').replace(/"/g, '""')}"`,
-      `"${j.quantity || ''}"`,
-      `"${j.technician || ''}"`,
-      `"${j.engineerHandoverDate || ''}"`,
-      `"${j.estimatedReturnDate || ''}"`,
-      `"${j.inspectionDate || ''}"`,
-      `"${j.inspectionResult || ''}"`,
-      `"${j.finishStatus || ''}"`,
-      `"${(j.remarks || '').replace(/"/g, '""')}"`,
-    ]);
+    const rows = filteredJobs.map((j) => {
+      const urgencyText = j.urgencyLevel === 'VERY_URGENT' ? 'งานด่วนมาก' : j.urgencyLevel === 'URGENT' ? 'งานด่วน' : 'งานปกติ';
+      return [
+        `"${j.id}"`,
+        `"${j.requestDate || ''}"`,
+        `"${j.requestMonth || ''}"`,
+        `"${j.requestTime || ''}"`,
+        `"${j.requester || ''}"`,
+        `"${j.sale || ''}"`,
+        `"${j.saleSoNo || ''}"`,
+        `"${j.customer || ''}"`,
+        `"${j.project || ''}"`,
+        `"${j.shipmentDate || ''}"`,
+        `"${(j.modifyDetails || '').replace(/"/g, '""')}"`,
+        `"${j.quantity || ''}"`,
+        `"${urgencyText}"`,
+        `"${j.technician || ''}"`,
+        `"${j.engineerHandoverDate || ''}"`,
+        `"${j.estimatedReturnDate || ''}"`,
+        `"${j.inspectionDate || ''}"`,
+        `"${j.inspectionResult || ''}"`,
+        `"${j.finishStatus || ''}"`,
+        `"${(j.remarks || '').replace(/"/g, '""')}"`,
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -183,6 +197,21 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
 
         {/* Filter Dropdowns */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Urgency Filter */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-slate-500 font-medium">ความเร่งด่วน:</span>
+            <select
+              value={urgencyFilter}
+              onChange={(e) => setUrgencyFilter(e.target.value)}
+              className="text-xs bg-transparent font-semibold text-slate-800 outline-hidden cursor-pointer"
+            >
+              <option value="ALL">ความเร่งด่วนทั้งหมด</option>
+              <option value="NORMAL">☕ งานปกติ</option>
+              <option value="URGENT">⚡ งานด่วน</option>
+              <option value="VERY_URGENT">🚨 งานด่วนมาก</option>
+            </select>
+          </div>
+
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-xs text-slate-500 font-medium">สถานะ Finish:</span>
@@ -312,10 +341,36 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                           {idx + 1}
                         </td>
 
-                        {/* Job ID & Type Badge */}
+                        {/* Job ID & Type & Urgency Badge */}
                         <td className="py-3.5 px-3.5">
                           <div className="flex flex-col">
-                            <span className="font-mono font-bold text-blue-700 text-sm">{job.id}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-blue-700 text-sm">{job.id}</span>
+                              {(() => {
+                                const urgency = getUrgencyDisplay(job.urgencyLevel);
+                                if (urgency.level === 'VERY_URGENT') {
+                                  return (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white shadow-2xs animate-pulse">
+                                      <span>🚨</span>
+                                      <span>ด่วนมาก</span>
+                                    </span>
+                                  );
+                                }
+                                if (urgency.level === 'URGENT') {
+                                  return (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white shadow-2xs">
+                                      <span>⚡</span>
+                                      <span>งานด่วน</span>
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center px-1 py-0.2 rounded text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                    ปกติ
+                                  </span>
+                                );
+                              })()}
+                            </div>
                             <div className="flex items-center gap-1 mt-0.5">
                               {job.rowNumber && (
                                 <span className="text-[10px] text-slate-600 font-mono">

@@ -33,12 +33,17 @@ import {
   updateModifyJobInSheet,
   deleteModifyJobFromSheet,
   setupSheetHeaders,
+  saveSpreadsheetInfo,
+  getSpreadsheetMetadata,
+  getSavedSpreadsheetInfo,
+  DEFAULT_PRIMARY_SPREADSHEET_ID,
 } from './services/googleSheets';
 import { Header } from './components/Header';
 import { StatsOverview } from './components/StatsOverview';
 import { ModifyJobTable } from './components/ModifyJobTable';
 import { ModifyJobCardView } from './components/ModifyJobCardView';
 import { ModifyJobCalendarView } from './components/ModifyJobCalendarView';
+import { TechnicianKpiDashboard } from './components/TechnicianKpiDashboard';
 import { ModifyRequestForm } from './components/ModifyRequestForm';
 import { StatusUpdateModal } from './components/StatusUpdateModal';
 import { StartWorkModal } from './components/StartWorkModal';
@@ -127,7 +132,17 @@ const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [spreadsheet, setSpreadsheet] = useState<GoogleSpreadsheetInfo | null>(null);
+  const [spreadsheet, setSpreadsheet] = useState<GoogleSpreadsheetInfo | null>(() => {
+    const saved = getSavedSpreadsheetInfo();
+    const sheetId = saved?.id || DEFAULT_PRIMARY_SPREADSHEET_ID;
+    const sheetName = saved?.name || 'ตาราง modify';
+    return {
+      id: sheetId,
+      name: sheetName,
+      url: `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
+      sheetName: 'modify',
+    };
+  });
   const [jobs, setJobs] = useState<ModifyJobItem[]>(INITIAL_DEMO_JOBS);
   const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -189,28 +204,26 @@ export default function App() {
     if (!user) return;
     setIsLoading(true);
     try {
-      let currentSheet = spreadsheet;
+      let targetSheet = spreadsheet;
 
-      // Find or create spreadsheet if not loaded yet
-      if (!currentSheet) {
-        let found = await findExistingSpreadsheet();
-        if (!found) {
-          found = await createModifySpreadsheet('ตาราง modify');
-          showToast('สร้าง Google Sheet "ตาราง modify" ในไดรฟ์ของคุณเรียบร้อยแล้ว', 'success');
-        }
-        currentSheet = found;
+      // Always resolve to the connected/primary sheet
+      const found = await findExistingSpreadsheet();
+      if (found) {
+        targetSheet = found;
         setSpreadsheet(found);
       }
 
-      // Fetch records from Google Sheet
-      const sheetJobs = await fetchModifyJobsFromSheet(currentSheet.id, currentSheet.sheetName);
-      if (sheetJobs.length > 0) {
-        setJobs(sheetJobs);
-      } else {
-        // If sheet is fresh and empty, we can seed or keep clean
-        setJobs([]);
+      if (targetSheet) {
+        // Fetch records from Google Sheet
+        const sheetJobs = await fetchModifyJobsFromSheet(targetSheet.id, targetSheet.sheetName);
+        if (sheetJobs.length > 0) {
+          setJobs(sheetJobs);
+          showToast(`ซิงค์ข้อมูลจาก Google Sheet "${targetSheet.name}" (${sheetJobs.length} รายการ) สำเร็จ!`, 'success');
+        } else {
+          setJobs([]);
+          showToast(`เชื่อมต่อกับ Google Sheet "${targetSheet.name}" เรียบร้อย (ไม่มีแถวข้อมูล)`, 'info');
+        }
       }
-      showToast(`โหลดข้อมูลจาก Google Sheet สำเร็จ (${sheetJobs.length} รายการ)`, 'success');
     } catch (err: any) {
       console.error('Error loading Google Sheet data:', err);
       showToast(err.message || 'ไม่สามารถโหลดข้อมูลจาก Google Sheet ได้', 'error');
@@ -373,14 +386,16 @@ export default function App() {
     setIsLoading(true);
     try {
       await setupSheetHeaders(sheetId, 'modify');
-      const info: GoogleSpreadsheetInfo = {
+      const meta = await getSpreadsheetMetadata(sheetId);
+      const info: GoogleSpreadsheetInfo = meta || {
         id: sheetId,
         name: 'Google Sheet (Connected)',
         url: `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
         sheetName: 'modify',
       };
       setSpreadsheet(info);
-      const sheetJobs = await fetchModifyJobsFromSheet(sheetId, 'modify');
+      saveSpreadsheetInfo(info);
+      const sheetJobs = await fetchModifyJobsFromSheet(sheetId, info.sheetName);
       setJobs(sheetJobs);
       setIsSheetSettingsOpen(false);
       showToast(`เชื่อมต่อชีตสำเร็จ! พบ ${sheetJobs.length} รายการ`, 'success');
@@ -504,6 +519,7 @@ export default function App() {
           selectedFilter={selectedFilter}
           onSelectFilter={setSelectedFilter}
           onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status })}
+          onOpenKpi={() => setViewMode('kpi')}
         />
 
         {/* Active Filter Report Banner */}
@@ -639,6 +655,19 @@ export default function App() {
             onDelete={handleDeleteJob}
             onAddNew={() => {
               setEditingJob(null);
+              setIsFormOpen(true);
+            }}
+          />
+        )}
+
+        {viewMode === 'kpi' && (
+          <TechnicianKpiDashboard
+            jobs={jobs}
+            onSelectJob={(job) => {
+              setTicketJob(job);
+            }}
+            onEditJob={(job) => {
+              setEditingJob(job);
               setIsFormOpen(true);
             }}
           />

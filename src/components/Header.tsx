@@ -8,6 +8,7 @@ import {
   Table,
   LayoutGrid,
   Calendar as CalendarIcon,
+  BarChart3,
   LogOut,
   Sparkles,
   Settings,
@@ -54,15 +55,18 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-mono font-black text-xs tracking-wider">
+                  LUMENCRAFT
+                </span>
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                   ระบบบันทึกงาน Modify
                 </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
                   Google Sheet Sync
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                <span>ตารางบันทึกข้อมูลและติดตามสถานะงาน Modify ทั้ง 16 รายการ</span>
+                <span>LUMENCRAFT • ตารางบันทึกข้อมูลและติดตามสถานะงาน Modify ทั้ง 16 รายการ</span>
               </div>
             </div>
           </div>
@@ -132,6 +136,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
                 <span>ปฏิทิน (Calendar)</span>
               </button>
+              <button
+                onClick={() => onViewModeChange('kpi')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === 'kpi'
+                    ? 'bg-white text-blue-700 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-purple-600" />
+                <span>KPI ช่าง & อัตราสำเร็จ</span>
+              </button>
             </div>
 
             {/* Print A4 Report Button */}
@@ -171,18 +186,28 @@ export const Header: React.FC<HeaderProps> = ({
             {user ? (
               /* User Dropdown / Sign Out */
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    referrerPolicy="no-referrer"
-                    className="w-8 h-8 rounded-full ring-2 ring-blue-500/20 object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
-                    {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                <div className="flex items-center gap-2">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || 'User'}
+                      referrerPolicy="no-referrer"
+                      className="w-8 h-8 rounded-full ring-2 ring-blue-500/20 object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
+                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="hidden lg:block text-left">
+                    <span className="text-xs font-bold text-slate-800 block leading-tight truncate max-w-[130px]">
+                      {user.displayName || user.email?.split('@')[0]}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60 inline-block">
+                      Owner Access
+                    </span>
                   </div>
-                )}
+                </div>
                 <button
                   onClick={onLogout}
                   title="ออกจากระบบ"

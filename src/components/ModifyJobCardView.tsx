@@ -22,6 +22,7 @@ import {
   formatDateDisplay,
   detectIsPaintingJob,
   calculateWorkingDaysElapsed,
+  getUrgencyDisplay,
 } from '../utils/formatters';
 
 interface ModifyJobCardViewProps {
@@ -70,9 +71,31 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
             {/* Card Header */}
             <div className="p-4 bg-slate-50/70 border-b border-slate-100 flex items-start justify-between">
               <div>
-                <span className="font-mono font-bold text-sm text-blue-700 block">
-                  {job.id}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-sm text-blue-700 block">
+                    {job.id}
+                  </span>
+                  {(() => {
+                    const urgency = getUrgencyDisplay(job.urgencyLevel);
+                    if (urgency.level === 'VERY_URGENT') {
+                      return (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white animate-pulse">
+                          <span>🚨</span>
+                          <span>ด่วนมาก</span>
+                        </span>
+                      );
+                    }
+                    if (urgency.level === 'URGENT') {
+                      return (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white">
+                          <span>⚡</span>
+                          <span>ด่วน</span>
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
                 <span className="text-xs text-slate-500 block mt-0.5">
                   {job.requestDate ? formatDateDisplay(job.requestDate) : '-'} {job.requestTime ? `(${job.requestTime} น.)` : ''}
                 </span>
