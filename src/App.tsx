@@ -57,7 +57,7 @@ import { formatDateDisplay } from './utils/formatters';
 const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
   {
     rowNumber: 2,
-    id: 'MOD-202608-0001',
+    id: 'ECR-202608-0001',
     requestDate: '2026-08-24',
     requestMonth: 'สิงหาคม 2026',
     requestTime: '09:30',
@@ -93,7 +93,7 @@ const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
   },
   {
     rowNumber: 3,
-    id: 'MOD-202608-0002',
+    id: 'ECR-202608-0002',
     requestDate: '2026-08-24',
     requestMonth: 'สิงหาคม 2026',
     requestTime: '13:45',
@@ -679,6 +679,7 @@ export default function App() {
         isOpen={isFormOpen}
         initialData={editingJob}
         existingCount={jobs.length}
+        existingJobs={jobs}
         currentUserEmail={user?.email || 'tawatchai.works@gmail.com'}
         isLoading={isLoading}
         onSave={handleSaveJob}

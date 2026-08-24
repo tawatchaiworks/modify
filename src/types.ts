@@ -2,9 +2,11 @@ export type InspectionResult = 'WAITING' | 'COMPLETE' | 'EDIT' | 'PASS' | 'REJEC
 
 export type JobUrgencyLevel = 'NORMAL' | 'URGENT' | 'VERY_URGENT';
 
+export type WorkTypeOption = 'GENERAL' | 'PAINTING' | 'REPAIR' | 'ASSEMBLY' | string;
+
 export interface ModifyJobItem {
   rowNumber?: number; // 1-indexed row number in Google Sheet (row 2, 3...)
-  id: string; // generated unique code e.g. MOD-2026-0001
+  id: string; // generated unique code e.g. ECR-2026-0001
   requestDate: string; // วันที่ Request (e.g. 2026-08-24 or 24/08/2026)
   requestMonth: string; // เดือนที่ Request (e.g. สิงหาคม 2026)
   requestTime: string; // เวลาที่ Request (e.g. 14:30)
@@ -19,7 +21,8 @@ export interface ModifyJobItem {
   workDetailsRaw?: string; // consolidated raw string with line breaks
   modifyDetails: string; // รายละเอียดที่ให้ Modify
   urgencyLevel?: JobUrgencyLevel | string; // สถานะความเร่งด่วน: NORMAL (งานปกติ) | URGENT (งานด่วน) | VERY_URGENT (งานด่วนมาก)
-  workType?: 'GENERAL' | 'PAINTING' | string; // ประเภทงาน: ทั่วไป หรือ ทำสี
+  workType?: string; // ประเภทงาน (เช่น GENERAL, PAINTING หรือรวมหลายประเภท)
+  workTypes?: string[]; // รายการประเภทงานที่เลือก (เลือกได้ 1 หรือ 2 ประเภท เช่น ['GENERAL', 'PAINTING'])
   quantity: number | string; // จำนวน
   technician?: string; // ช่างผู้ทำ / ช่างผู้รับผิดชอบ
   createdBy?: string; // ชื่อ/อีเมล login เข้าใช้งาน Google (e.g. tawatchai.works@gmail.com)

@@ -30,6 +30,7 @@ import {
   calculateWorkingDaysElapsed,
   getUrgencyDisplay,
   URGENCY_OPTIONS,
+  getWorkTypeDisplay,
 } from '../utils/formatters';
 
 interface ModifyJobTableProps {
@@ -371,17 +372,20 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                                 );
                               })()}
                             </div>
-                            <div className="flex items-center gap-1 mt-0.5">
+                            <div className="flex items-center flex-wrap gap-1 mt-0.5">
                               {job.rowNumber && (
                                 <span className="text-[10px] text-slate-600 font-mono">
                                   Row #{job.rowNumber}
                                 </span>
                               )}
-                              {isPainting && (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800">
-                                  🎨 ทำสี
+                              {getWorkTypeDisplay(job.workTypes || job.workType).matched.map((wt) => (
+                                <span
+                                  key={wt.id}
+                                  className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold border ${wt.badgeClass}`}
+                                >
+                                  {wt.icon} {wt.shortName}
                                 </span>
-                              )}
+                              ))}
                             </div>
                           </div>
                         </td>

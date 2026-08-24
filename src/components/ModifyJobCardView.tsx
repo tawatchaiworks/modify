@@ -23,6 +23,7 @@ import {
   detectIsPaintingJob,
   calculateWorkingDaysElapsed,
   getUrgencyDisplay,
+  getWorkTypeDisplay,
 } from '../utils/formatters';
 
 interface ModifyJobCardViewProps {
@@ -160,15 +161,17 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
                 <p className="text-slate-600 line-clamp-2 leading-relaxed">
                   {job.modifyDetails || '- ไม่มีรายละเอียด -'}
                 </p>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-200/60 pt-1.5">
-                  <div className="flex items-center gap-1.5">
+                <div className="mt-2 flex items-center justify-between flex-wrap gap-1.5 text-[11px] text-slate-500 border-t border-slate-200/60 pt-1.5">
+                  <div className="flex items-center flex-wrap gap-1">
                     <span>จำนวน: <strong className="text-blue-700">{job.quantity || '1'}</strong></span>
-                    {(job.workType === 'PAINTING' || detectIsPaintingJob(job.modifyDetails)) && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 font-bold rounded text-[9px]">
-                        <Palette className="w-2.5 h-2.5" />
-                        <span>ทำสี</span>
+                    {getWorkTypeDisplay(job.workTypes || job.workType).matched.map((wt) => (
+                      <span
+                        key={wt.id}
+                        className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold border ${wt.badgeClass}`}
+                      >
+                        {wt.icon} {wt.shortName}
                       </span>
-                    )}
+                    ))}
                   </div>
                   <span>10 บรรทัด: <strong className="text-emerald-700">{completedLines}/10 ข้อ</strong></span>
                 </div>

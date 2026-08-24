@@ -398,7 +398,7 @@ export const fetchModifyJobsFromSheet = async (
 
   return dataRows.map((row, index) => {
     const rowNumber = hasHeader ? index + 2 : index + 1; // 1-based row number
-    const id = String(row[0] || `MOD-${1000 + index}`);
+    const id = String(row[0] || `ECR-${1000 + index}`);
     const requestDate = String(row[1] || '');
     const requestMonth = String(row[2] || '');
     const requestTime = String(row[3] || '');

@@ -100,7 +100,7 @@ export const generateJobId = (existingCount = 0): string => {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const seq = String(existingCount + 1).padStart(4, '0');
-  return `MOD-${year}${month}-${seq}`;
+  return `ECR-${year}${month}-${seq}`;
 };
 
 export const formatDateDisplay = (dateStr?: string): string => {
@@ -471,8 +471,131 @@ export const PAINTING_WORKING_DAYS_RULES: QuantityWorkingDaysRule[] = [
 
 export const QUANTITY_WORKING_DAYS_RULES = GENERAL_WORKING_DAYS_RULES;
 
+export interface WorkTypeOptionItem {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+  icon: string;
+  badgeClass: string;
+  activeClass: string;
+  description: string;
+}
+
+export const WORK_TYPE_OPTIONS: WorkTypeOptionItem[] = [
+  {
+    id: 'GENERAL',
+    code: 'GENERAL',
+    name: 'งาน Modify ทั่วไป',
+    shortName: 'งาน Modify ทั่วไป',
+    icon: '🔨',
+    badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
+    activeClass: 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-600/30',
+    description: 'งานตัด กัด กลึง เจาะ ดัดแปลงชิ้นงานทั่วไป',
+  },
+  {
+    id: 'PAINTING',
+    code: 'PAINTING',
+    name: 'งานทำสี (Painting)',
+    shortName: 'งานทำสี',
+    icon: '🎨',
+    badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
+    activeClass: 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-600/30',
+    description: 'งานพ่นสี อบสี ชุบอโนไดซ์ ชุบผิวชิ้นงาน',
+  },
+];
+
 /**
- * ตรวจจับว่าเป็นงานทำสีหรือไม่จากข้อความ (Auto-detection for painting jobs)
+ * แยกรายการประเภทงานเป็น array ของ string IDs (เช่น ['GENERAL', 'PAINTING'])
+ */
+export const parseWorkTypes = (input?: string | string[] | null): string[] => {
+  if (!input) return ['GENERAL'];
+  if (Array.isArray(input)) {
+    const valid = input
+      .map((t) => {
+        const up = String(t).toUpperCase();
+        if (up.includes('PAINT') || up.includes('ทำสี') || up.includes('พ่นสี') || up.includes('ชุบ')) return 'PAINTING';
+        return 'GENERAL';
+      })
+      .filter(Boolean);
+    const unique = Array.from(new Set(valid));
+    return unique.length > 0 ? unique : ['GENERAL'];
+  }
+  const str = String(input).toUpperCase();
+  const found: string[] = [];
+  if (str.includes('GENERAL') || str.includes('ทั่วไป') || str.includes('MODIFY') || str.includes('ซ่อม') || str.includes('ประกอบ')) {
+    found.push('GENERAL');
+  }
+  if (str.includes('PAINTING') || str.includes('ทำสี') || str.includes('พ่นสี') || str.includes('ชุบ')) {
+    found.push('PAINTING');
+  }
+
+  return found.length > 0 ? found : ['GENERAL'];
+};
+
+/**
+ * ดึงข้อมูลการแสดงผลประเภทงานสำหรับ UI
+ */
+export const getWorkTypeDisplay = (input?: string | string[] | null) => {
+  const types = parseWorkTypes(input);
+  const matched = types.map((t) => {
+    const opt = WORK_TYPE_OPTIONS.find((o) => o.id === t || o.code === t);
+    if (opt) return opt;
+    return {
+      id: t,
+      code: t,
+      name: t,
+      shortName: t,
+      icon: '📌',
+      badgeClass: 'bg-slate-100 text-slate-800 border-slate-200',
+      activeClass: 'bg-slate-700 text-white',
+      description: '',
+    };
+  });
+
+  const hasPainting = types.includes('PAINTING') || matched.some((m) => m.id === 'PAINTING' || m.name.includes('ทำสี'));
+  const label = matched.map((m) => `${m.icon} ${m.shortName}`).join(' + ');
+
+  return {
+    types,
+    matched,
+    hasPainting,
+    label: label || '🔨 Modify ทั่วไป',
+  };
+};
+
+/**
+ * คำนวณจำนวนชิ้นรวมจากรายละเอียดงาน 10 บรรทัด (Sum of workDetailQuantities 1-10)
+ */
+export const calculateWorkDetailsTotalQuantity = (
+  quantities?: (string | number)[] | null
+): { totalQty: number; countWithQty: number; hasAnyQty: boolean } => {
+  if (!quantities || !Array.isArray(quantities)) {
+    return { totalQty: 0, countWithQty: 0, hasAnyQty: false };
+  }
+
+  let total = 0;
+  let count = 0;
+
+  quantities.forEach((q) => {
+    if (q === undefined || q === null || q === '') return;
+    const str = String(q).replace(/[^\d\.]/g, '').trim();
+    const num = parseFloat(str);
+    if (!isNaN(num) && num > 0) {
+      total += num;
+      count++;
+    }
+  });
+
+  return {
+    totalQty: Math.round(total * 100) / 100, // round to 2 decimals if needed
+    countWithQty: count,
+    hasAnyQty: count > 0,
+  };
+};
+
+/**
+ * ตรวจจับว่าเป็นงานทำสีหรือไม่จากข้อความ หรือประเภทงานที่เลือก
  */
 export const detectIsPaintingJob = (input?: any): boolean => {
   if (!input) return false;
@@ -480,7 +603,12 @@ export const detectIsPaintingJob = (input?: any): boolean => {
   if (typeof input === 'string') {
     text = input;
   } else if (typeof input === 'object' && input !== null) {
-    if (input.workType === 'PAINTING') return true;
+    if (input.workType === 'PAINTING' || (Array.isArray(input.workTypes) && input.workTypes.includes('PAINTING'))) {
+      return true;
+    }
+    if (typeof input.workType === 'string' && (input.workType.includes('PAINTING') || input.workType.includes('ทำสี'))) {
+      return true;
+    }
     text = [
       input.modifyDetails,
       input.remarks,
@@ -522,15 +650,19 @@ export const detectIsPaintingJob = (input?: any): boolean => {
  */
 export const getWorkingDaysForQuantity = (
   qtyInput: number | string,
-  workType: 'GENERAL' | 'PAINTING' | string = 'GENERAL'
+  workType: string | string[] = 'GENERAL'
 ): number => {
-  const qty = typeof qtyInput === 'string' ? parseInt(qtyInput, 10) : qtyInput;
+  const isPainting = Array.isArray(workType)
+    ? workType.includes('PAINTING')
+    : String(workType).includes('PAINTING') || String(workType).includes('ทำสี');
+
+  const qty = typeof qtyInput === 'string' ? parseInt(qtyInput.replace(/[^\d]/g, ''), 10) : qtyInput;
   if (isNaN(qty) || qty <= 0) {
-    return workType === 'PAINTING' ? 3 : 1;
+    return isPainting ? 3 : 1;
   }
 
   // กรณีกรอบเกณฑ์งานทำสี (Painting Rules)
-  if (workType === 'PAINTING') {
+  if (isPainting) {
     if (qty >= 1 && qty <= 10) return 3;
     if (qty >= 11 && qty <= 20) return 4;
     if (qty >= 21 && qty <= 50) return 7;
@@ -595,7 +727,7 @@ export const addWorkingDays = (
 export const calculateEstimatedCompletion = (
   startDateStr: string,
   qtyInput: number | string,
-  workType: 'GENERAL' | 'PAINTING' | string = 'GENERAL',
+  workType: string | string[] = 'GENERAL',
   includeSaturday = false
 ): {
   workingDays: number;
@@ -603,13 +735,16 @@ export const calculateEstimatedCompletion = (
   ruleLabel: string;
   isPainting: boolean;
 } => {
-  const isPainting = workType === 'PAINTING';
+  const isPainting = Array.isArray(workType)
+    ? workType.includes('PAINTING')
+    : String(workType).includes('PAINTING') || String(workType).includes('ทำสี');
+
   const workingDays = getWorkingDaysForQuantity(qtyInput, workType);
   const calculatedDate = addWorkingDays(startDateStr, workingDays, includeSaturday);
 
   const rules = isPainting ? PAINTING_WORKING_DAYS_RULES : GENERAL_WORKING_DAYS_RULES;
-  const qty = typeof qtyInput === 'string' ? parseInt(qtyInput, 10) : qtyInput;
-  let ruleLabel = `${workingDays} วันทำการ (${isPainting ? 'งานทำสี' : 'ทั่วไป'})`;
+  const qty = typeof qtyInput === 'string' ? parseInt(qtyInput.replace(/[^\d]/g, ''), 10) : qtyInput;
+  let ruleLabel = `${workingDays} วันทำการ (${isPainting ? 'มีงานทำสี' : 'ทั่วไป'})`;
 
   if (!isNaN(qty)) {
     const matched = rules.find((r) => qty >= r.min && qty <= r.max);
@@ -662,10 +797,234 @@ export const calculateWorkingDaysElapsed = (
   }
   return count;
 };
+/**
+ * รายชื่อช่างมาตรฐานเริ่มต้น
+ */
+export const DEFAULT_TECHNICIANS = [
+  'ช่างสมพงษ์ (CNC)',
+  'ช่างธนาวุฒิ (Weld/Sheet)',
+  'ช่างเอกชัย (Milling)',
+  'ช่างวิชัย (Lathe/กลึง)',
+  'ช่างสมพร (Assembly)',
+  'ช่างมานพ (QC/Modify)',
+];
+
+export interface TechnicianQueueInfo {
+  name: string;
+  activeJobsCount: number;
+  activeJobs: ModifyJobItem[];
+  isFree: boolean;
+  latestFinishDate: string; // YYYY-MM-DD
+  latestJob: ModifyJobItem | null;
+  availableStartDate: string; // YYYY-MM-DD
+  estimatedFinishDate: string; // YYYY-MM-DD
+  estimatedWorkingDays: number;
+}
+
+export interface QueueEstimateResult {
+  technicianName: string;
+  isTechnicianFree: boolean;
+  activeJobsCount: number;
+  priorJob: ModifyJobItem | null;
+  effectiveStartDate: string;
+  workingDays: number;
+  calculatedReturnDate: string;
+  isQueuedAfterPriorJob: boolean;
+  ruleLabel: string;
+  queueExplanation: string;
+}
 
 /**
- * ดึงข้อมูลสถานะความคืบหน้าของงานโดยอ้างอิงจากวันที่เริ่มทำงาน
+ * คำนวณวันประมาณการเสร็จโดยอิงจากคิวงานของช่าง (Queue-based estimation)
+ * ถ้านายช่างมีงานค้างอยู่ -> ให้นับวันทำงานเริ่มจากวันที่งานก่อนหน้าเสร็จ
+ * ถ้าเป็นช่างที่ไม่มีงานค้าง (ว่าง) -> ให้นับจากวันที่รับสินค้าทันที
  */
+export const calculateQueueBasedEstimate = (
+  technicianName: string | undefined | null,
+  receiveDateStr: string | undefined | null,
+  quantity: number | string,
+  workTypes: string | string[] = 'GENERAL',
+  existingJobs: ModifyJobItem[] = [],
+  currentJobId?: string,
+  includeSaturday = false
+): QueueEstimateResult => {
+  const cleanTech = (technicianName || '').trim();
+  const baseReceiveDate = normalizeToISODate(receiveDateStr || getCurrentDateFormatted()) || getCurrentDateFormatted();
+  const workingDays = getWorkingDaysForQuantity(quantity, workTypes);
+  const isPainting = Array.isArray(workTypes)
+    ? workTypes.includes('PAINTING')
+    : String(workTypes).includes('PAINTING') || String(workTypes).includes('ทำสี');
+
+  const rules = isPainting ? PAINTING_WORKING_DAYS_RULES : GENERAL_WORKING_DAYS_RULES;
+  const qty = typeof quantity === 'string' ? parseInt(quantity.replace(/[^\d]/g, ''), 10) : quantity;
+  let ruleLabel = `${workingDays} วันทำการ (${isPainting ? 'มีงานทำสี' : 'ทั่วไป'})`;
+  if (!isNaN(qty)) {
+    const matched = rules.find((r) => qty >= r.min && qty <= r.max);
+    if (matched) {
+      ruleLabel = matched.label;
+    } else if (qty > 300) {
+      ruleLabel = `> 300 ชิ้น: ${workingDays} วันทำการ`;
+    }
+  }
+
+  // If no technician assigned yet
+  if (!cleanTech) {
+    const calculatedReturnDate = addWorkingDays(baseReceiveDate, workingDays, includeSaturday);
+    return {
+      technicianName: '',
+      isTechnicianFree: true,
+      activeJobsCount: 0,
+      priorJob: null,
+      effectiveStartDate: baseReceiveDate,
+      workingDays,
+      calculatedReturnDate,
+      isQueuedAfterPriorJob: false,
+      ruleLabel,
+      queueExplanation: `ยังไม่ได้ระบุช่าง: คำนวณเริ่มต้นจากวันรับสินค้า (${formatDateDisplay(baseReceiveDate)}) + ${workingDays} วันทำการ`,
+    };
+  }
+
+  // Find all active/in-progress/pending jobs for this technician (excluding current job)
+  const techJobs = existingJobs.filter((job) => {
+    if (currentJobId && job.id === currentJobId) return false;
+    const jTech = (job.technician || '').trim().toLowerCase();
+    if (!jTech) return false;
+    if (jTech !== cleanTech.toLowerCase() && !cleanTech.toLowerCase().includes(jTech) && !jTech.includes(cleanTech.toLowerCase())) {
+      return false;
+    }
+    // Only consider non-finished / non-cancelled jobs
+    return job.finishStatus !== 'FINISH' && job.finishStatus !== 'CANCELLED';
+  });
+
+  if (techJobs.length === 0) {
+    // Technician is FREE (ช่างไม่มีงานทำ / ไม่มีงานค้าง) -> Start immediately from receiveDate
+    const calculatedReturnDate = addWorkingDays(baseReceiveDate, workingDays, includeSaturday);
+    return {
+      technicianName: cleanTech,
+      isTechnicianFree: true,
+      activeJobsCount: 0,
+      priorJob: null,
+      effectiveStartDate: baseReceiveDate,
+      workingDays,
+      calculatedReturnDate,
+      isQueuedAfterPriorJob: false,
+      ruleLabel,
+      queueExplanation: `✨ ${cleanTech} ไม่มีงานค้าง (ช่างว่าง) เริ่มงานได้ทันทีจากวันรับสินค้า (${formatDateDisplay(baseReceiveDate)}) -> ประมาณการเสร็จ ${formatDateDisplay(calculatedReturnDate)}`,
+    };
+  }
+
+  // Technician has active jobs -> Find the latest finish date among existing jobs
+  let latestJobDate = '';
+  let latestJob: ModifyJobItem | null = null;
+
+  techJobs.forEach((j) => {
+    // Prefer estimatedReturnDate, or calculate one from handover date
+    let finishDate = normalizeToISODate(j.estimatedReturnDate);
+    if (!finishDate && j.engineerHandoverDate) {
+      const jWorkType = j.workTypes || j.workType || 'GENERAL';
+      const jEst = calculateEstimatedCompletion(j.engineerHandoverDate, j.quantity, jWorkType, includeSaturday);
+      finishDate = jEst.calculatedDate;
+    }
+    if (!finishDate) {
+      finishDate = normalizeToISODate(j.requestDate) || baseReceiveDate;
+    }
+
+    if (!latestJobDate || finishDate > latestJobDate) {
+      latestJobDate = finishDate;
+      latestJob = j;
+    }
+  });
+
+  // Check if latest finish date is in the future compared to baseReceiveDate
+  const isQueued = Boolean(latestJobDate && latestJobDate >= baseReceiveDate);
+  const effectiveStartDate = isQueued ? latestJobDate : baseReceiveDate;
+  const calculatedReturnDate = addWorkingDays(effectiveStartDate, workingDays, includeSaturday);
+
+  const priorJobInfo = latestJob ? `Job ${latestJob.id || ''} (${latestJob.customer || 'ลูกค้า'})` : 'งานก่อนหน้า';
+
+  return {
+    technicianName: cleanTech,
+    isTechnicianFree: false,
+    activeJobsCount: techJobs.length,
+    priorJob: latestJob,
+    effectiveStartDate,
+    workingDays,
+    calculatedReturnDate,
+    isQueuedAfterPriorJob: isQueued,
+    ruleLabel,
+    queueExplanation: isQueued
+      ? `⏳ ${cleanTech} มีงานค้าง ${techJobs.length} งาน (งานก่อนหน้า ${priorJobInfo} คาดว่าจะเสร็จ ${formatDateDisplay(latestJobDate)}) ระบบเริ่มนับวันทำงานต่องานก่อนหน้า (${formatDateDisplay(latestJobDate)}) + ${workingDays} วันทำการ -> ประมาณการเสร็จ ${formatDateDisplay(calculatedReturnDate)}`
+      : `✨ ${cleanTech} มีงานค้าง ${techJobs.length} งานแต่กำหนดเสร็จก่อนวันรับสินค้า เริ่มงานได้จาก ${formatDateDisplay(baseReceiveDate)} -> ประมาณการเสร็จ ${formatDateDisplay(calculatedReturnDate)}`,
+  };
+};
+
+/**
+ * สรุปคิวงานของช่างทั้งหมด พร้อมค้นหาช่างที่ว่าง (ไม่มีงานทำ) และช่างที่คิวว่างเร็วที่สุด
+ */
+export const getAllTechniciansQueueList = (
+  existingJobs: ModifyJobItem[] = [],
+  quantity: number | string = 1,
+  workTypes: string | string[] = 'GENERAL',
+  receiveDateStr?: string,
+  currentJobId?: string,
+  includeSaturday = false
+): TechnicianQueueInfo[] => {
+  const baseReceiveDate = normalizeToISODate(receiveDateStr || getCurrentDateFormatted()) || getCurrentDateFormatted();
+  
+  // Extract all distinct technician names from existing jobs + default list
+  const techNames = new Set<string>(DEFAULT_TECHNICIANS);
+  existingJobs.forEach((j) => {
+    if (j.technician && j.technician.trim()) {
+      techNames.add(j.technician.trim());
+    }
+  });
+
+  const list: TechnicianQueueInfo[] = [];
+
+  techNames.forEach((tech) => {
+    const queueRes = calculateQueueBasedEstimate(
+      tech,
+      baseReceiveDate,
+      quantity,
+      workTypes,
+      existingJobs,
+      currentJobId,
+      includeSaturday
+    );
+
+    const activeJobs = existingJobs.filter((j) => {
+      if (currentJobId && j.id === currentJobId) return false;
+      const jTech = (j.technician || '').trim().toLowerCase();
+      if (!jTech) return false;
+      return (
+        (jTech === tech.toLowerCase() || tech.toLowerCase().includes(jTech) || jTech.includes(tech.toLowerCase())) &&
+        j.finishStatus !== 'FINISH' &&
+        j.finishStatus !== 'CANCELLED'
+      );
+    });
+
+    list.push({
+      name: tech,
+      activeJobsCount: queueRes.activeJobsCount,
+      activeJobs,
+      isFree: queueRes.isTechnicianFree,
+      latestFinishDate: queueRes.priorJob?.estimatedReturnDate || queueRes.effectiveStartDate,
+      latestJob: queueRes.priorJob,
+      availableStartDate: queueRes.effectiveStartDate,
+      estimatedFinishDate: queueRes.calculatedReturnDate,
+      estimatedWorkingDays: queueRes.workingDays,
+    });
+  });
+
+  // Sort: Free technicians first, then by earliest available finish date
+  return list.sort((a, b) => {
+    if (a.isFree && !b.isFree) return -1;
+    if (!a.isFree && b.isFree) return 1;
+    if (a.activeJobsCount !== b.activeJobsCount) return a.activeJobsCount - b.activeJobsCount;
+    return a.estimatedFinishDate.localeCompare(b.estimatedFinishDate);
+  });
+};
+
 export const getJobProgressDetails = (
   job: ModifyJobItem
 ): {

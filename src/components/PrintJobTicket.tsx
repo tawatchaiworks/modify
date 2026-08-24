@@ -24,7 +24,12 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
-import { formatDateDisplay, formatThaiFullDate, getUrgencyDisplay } from '../utils/formatters';
+import {
+  formatDateDisplay,
+  formatThaiFullDate,
+  getUrgencyDisplay,
+  getWorkTypeDisplay,
+} from '../utils/formatters';
 
 interface PrintJobTicketProps {
   job: ModifyJobItem | null;
@@ -352,14 +357,17 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
               </div>
 
               <div className="space-y-0.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase block">9. จำนวน (Quantity):</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-blue-900 text-sm">{job.quantity || '-'}</span>
-                  {job.workType === 'PAINTING' && (
-                    <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">
-                      🎨 ทำสี
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">9. จำนวน & ประเภทงาน:</span>
+                <div className="flex items-center flex-wrap gap-1">
+                  <span className="font-black text-blue-900 text-sm">{job.quantity || '-'} ชิ้น</span>
+                  {getWorkTypeDisplay(job.workTypes || job.workType).matched.map((wt) => (
+                    <span
+                      key={wt.id}
+                      className={`px-1.5 py-0.2 text-[9px] font-bold rounded border ${wt.badgeClass}`}
+                    >
+                      {wt.icon} {wt.shortName}
                     </span>
-                  )}
+                  ))}
                 </div>
               </div>
 

@@ -623,34 +623,70 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                     </div>
 
                     {/* Day Events List inside Grid Cell */}
-                    <div className="flex-1 space-y-1 overflow-y-auto max-h-[85px] sm:max-h-[105px] pr-0.5">
-                      {dayEvents.slice(0, 3).map((ev) => (
-                        <div
-                          key={ev.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedDayISO(ev.date);
-                            setMonthDetailMode('selected_day');
-                          }}
-                          title={`SO: ${ev.job.saleSoNo || '-'} | โครงการ: ${ev.job.project || '-'} | เซลล์: ${ev.job.sale || '-'} | ช่าง: ${ev.job.technician || '-'}`}
-                          className={`px-1.5 py-1 rounded-md text-[10px] sm:text-[11px] font-semibold border truncate cursor-pointer transition-all shadow-2xs ${ev.colorClass.bg} ${ev.colorClass.border}`}
-                        >
-                          <div className="flex items-center justify-between gap-1 truncate">
-                            <div className="flex items-center gap-1 truncate">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.colorClass.dot}`} />
-                              <span className="font-mono font-bold text-[9px] shrink-0 text-slate-700">
-                                {ev.job.saleSoNo ? ev.job.saleSoNo.split('-').pop() : ev.jobId.split('-').pop()}
+                    <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[90px] sm:max-h-[115px] pr-0.5">
+                      {dayEvents.slice(0, 3).map((ev) => {
+                        const isFinish = ev.job.finishStatus === 'FINISH';
+                        const isInProgress = ev.job.finishStatus === 'IN_PROGRESS';
+                        const statusColor = isFinish
+                          ? 'bg-emerald-600 text-white'
+                          : isInProgress
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-slate-500 text-white';
+                        const statusText = isFinish
+                          ? 'เสร็จ (FINISH)'
+                          : isInProgress
+                          ? 'กำลังทำ'
+                          : 'รอดำเนินการ';
+
+                        return (
+                          <div
+                            key={ev.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDayISO(ev.date);
+                              setMonthDetailMode('selected_day');
+                            }}
+                            title={`SO No: ${ev.job.saleSoNo || '-'} | สถานะงาน: ${ev.job.finishStatus || 'PENDING'} | ประมาณการส่ง: ${ev.job.estimatedReturnDate || '-'} | QC: ${ev.job.inspectionResult || 'WAITING'} | โครงการ: ${ev.job.project || '-'} | ลูกค้า: ${ev.customer} | เซลล์: ${ev.job.sale || '-'} | ช่าง: ${ev.job.technician || '-'}`}
+                            className={`p-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border cursor-pointer transition-all shadow-2xs ${ev.colorClass.bg} ${ev.colorClass.border} hover:shadow-xs hover:border-blue-400`}
+                          >
+                            {/* Line 1: SO No. + Job Status Badge */}
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="font-mono font-black text-[9px] sm:text-[10px] text-blue-900 bg-blue-100/90 px-1.5 py-0.5 rounded border border-blue-200 truncate">
+                                SO: {ev.job.saleSoNo ? ev.job.saleSoNo : ev.jobId}
                               </span>
+                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${statusColor}`}>
+                                {statusText}
+                              </span>
+                            </div>
+
+                            {/* Line 2: Customer & Project */}
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-900 truncate">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.colorClass.dot}`} />
                               <span className="truncate">{ev.customer}</span>
                             </div>
+
+                            {/* Line 3: วันที่ประมาณการส่ง (Estimated Return Date) */}
+                            {ev.job.estimatedReturnDate && (
+                              <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200/70 font-mono mt-0.5 truncate">
+                                <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                <span className="truncate font-semibold">
+                                  นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Line 4: Milestone & Technician */}
+                            <div className="flex items-center justify-between gap-1 text-[9px] text-slate-500 mt-0.5 pt-0.5 border-t border-slate-200/60">
+                              <span className="truncate text-slate-600 font-medium">{ev.typeLabel}</span>
+                              {ev.job.technician && (
+                                <span className="text-indigo-700 font-medium shrink-0 truncate max-w-[50%]">
+                                  🔧 {ev.job.technician}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {/* Mini info row */}
-                          <div className="text-[9px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                            {ev.job.sale && <span className="text-slate-600 font-medium">👤 {ev.job.sale}</span>}
-                            {ev.job.technician && <span className="text-indigo-600 font-medium">🔧 {ev.job.technician}</span>}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {dayEvents.length > 3 && (
                         <button
@@ -1029,7 +1065,11 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                           </div>
 
                           {/* Key Requested Information Grid */}
-                          <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">So No.:</span>
+                              <strong className="text-blue-700 font-mono font-bold text-xs">{job.saleSoNo || '-'}</strong>
+                            </div>
                             <div>
                               <span className="text-slate-400 block text-[10px]">ชื่อเซลล์ (Sale):</span>
                               <strong className="text-slate-800 font-semibold">{job.sale || '-'}</strong>
@@ -1038,13 +1078,21 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               <span className="text-slate-400 block text-[10px]">ชื่อช่าง (Technician):</span>
                               <strong className="text-slate-800 font-semibold">{job.technician || '-'}</strong>
                             </div>
-                            <div>
-                              <span className="text-slate-400 block text-[10px]">So No.:</span>
-                              <strong className="text-blue-700 font-mono font-semibold">{job.saleSoNo || '-'}</strong>
+                            <div className="bg-amber-50/80 p-1.5 rounded-lg border border-amber-200/60">
+                              <span className="text-amber-800 block text-[10px] font-bold">⏳ ประมาณการส่งมอบคืน:</span>
+                              <strong className="text-amber-950 font-semibold text-[11px] block">
+                                {job.estimatedReturnDate ? formatDateDisplay(job.estimatedReturnDate) : '-'}
+                              </strong>
+                            </div>
+                            <div className="bg-blue-50/80 p-1.5 rounded-lg border border-blue-200/60">
+                              <span className="text-blue-800 block text-[10px] font-bold">🚚 Shipment Date:</span>
+                              <strong className="text-blue-950 font-semibold text-[11px] block">
+                                {job.shipmentDate ? formatDateDisplay(job.shipmentDate) : '-'}
+                              </strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 block text-[10px]">Login ผู้บันทึก (Google):</span>
-                              <strong className="text-emerald-700 font-mono text-[11px] truncate block">
+                              <span className="text-slate-400 block text-[10px]">Login ผู้บันทึก:</span>
+                              <strong className="text-emerald-700 font-mono text-[11px] truncate block" title={job.createdBy || activeUserEmail}>
                                 {job.createdBy || activeUserEmail}
                               </strong>
                             </div>
@@ -1055,7 +1103,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                             <button
                               type="button"
                               onClick={() => onViewTicket(job)}
-                              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                             >
                               <Printer className="w-3.5 h-3.5" />
                               <span>พิมพ์ใบงาน</span>
@@ -1065,14 +1113,14 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onQuickStatus(job)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
                               >
                                 อัปเดตสถานะ
                               </button>
                               <button
                                 type="button"
                                 onClick={() => onEdit(job)}
-                                className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-600"
+                                className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-slate-600 cursor-pointer"
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
@@ -1132,84 +1180,115 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                         <span className="text-[11px] text-slate-400 font-medium">ไม่มีกำหนดการ</span>
                       </div>
                     ) : (
-                      dayEvents.map((ev) => (
-                        <div
-                          key={ev.id}
-                          className={`p-2.5 rounded-xl border text-xs shadow-2xs space-y-1.5 transition-all hover:shadow-xs bg-white ${ev.colorClass.border}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-bold text-[10px] text-blue-700">
-                              {ev.job.saleSoNo || ev.jobId}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${ev.colorClass.badge}`}
-                            >
-                              {ev.typeLabel}
-                            </span>
-                          </div>
+                      dayEvents.map((ev) => {
+                        const isFinish = ev.job.finishStatus === 'FINISH';
+                        const isInProgress = ev.job.finishStatus === 'IN_PROGRESS';
 
-                          <h5 className="font-bold text-slate-900 text-xs line-clamp-1">
-                            {ev.customer}
-                          </h5>
-
-                          {ev.job.project && (
-                            <p className="text-[10px] text-indigo-700 font-medium truncate">
-                              🏢 {ev.job.project}
-                            </p>
-                          )}
-
-                          <div className="space-y-0.5 text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                              <span>เซลล์: <strong className="text-slate-800">{ev.job.sale || '-'}</strong></span>
-                              <span>ช่าง: <strong className="text-slate-800">{ev.job.technician || '-'}</strong></span>
-                            </div>
-                            <div className="text-[9px] text-emerald-700 font-mono truncate">
-                              login: {ev.job.createdBy || activeUserEmail}
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => onViewTicket(ev.job)}
-                              title="พิมพ์ใบสั่งงาน"
-                              className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
-                            >
-                              <Printer className="w-3 h-3" />
-                              <span>พิมพ์</span>
-                            </button>
-
-                            <div className="flex items-center gap-1">
-                              <a
-                                href={generateGoogleCalendarLink(ev.job, ev.type as any)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="เพิ่มลง Google Calendar"
-                                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded"
+                        return (
+                          <div
+                            key={ev.id}
+                            className={`p-2.5 rounded-xl border text-xs shadow-2xs space-y-1.5 transition-all hover:shadow-xs bg-white ${ev.colorClass.border}`}
+                          >
+                            {/* SO No. + Job Status Header */}
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-mono font-black text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 truncate">
+                                SO: {ev.job.saleSoNo || ev.jobId}
+                              </span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
+                                  isFinish
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : isInProgress
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-slate-100 text-slate-700 border border-slate-300'
+                                }`}
                               >
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
+                                {isFinish ? '🟢 FINISH' : isInProgress ? '🟡 PROGRESS' : '⚪ PENDING'}
+                              </span>
+                            </div>
+
+                            {/* Milestone Badge */}
+                            <div>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold inline-block ${ev.colorClass.badge}`}
+                              >
+                                {ev.typeLabel}
+                              </span>
+                            </div>
+
+                            <h5 className="font-bold text-slate-900 text-xs line-clamp-1">
+                              {ev.customer}
+                            </h5>
+
+                            {ev.job.project && (
+                              <p className="text-[10px] text-indigo-700 font-medium truncate">
+                                🏢 {ev.job.project}
+                              </p>
+                            )}
+
+                            {/* Estimated Return Date */}
+                            {ev.job.estimatedReturnDate && (
+                              <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-mono truncate">
+                                <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                <span className="truncate font-semibold">
+                                  นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="space-y-0.5 text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                              <div className="flex items-center justify-between">
+                                <span>เซลล์: <strong className="text-slate-800">{ev.job.sale || '-'}</strong></span>
+                                <span>ช่าง: <strong className="text-slate-800">{ev.job.technician || '-'}</strong></span>
+                              </div>
+                              <div className="text-[9px] text-emerald-700 font-mono truncate">
+                                login: {ev.job.createdBy || activeUserEmail}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                               <button
                                 type="button"
-                                onClick={() => onQuickStatus(ev.job)}
-                                title="อัปเดตสถานะ"
-                                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded"
+                                onClick={() => onViewTicket(ev.job)}
+                                title="พิมพ์ใบสั่งงาน"
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
                               >
-                                <Wrench className="w-3 h-3" />
+                                <Printer className="w-3 h-3" />
+                                <span>พิมพ์</span>
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => onEdit(ev.job)}
-                                title="แก้ไข"
-                                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </button>
+
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={generateGoogleCalendarLink(ev.job, ev.type as any)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="เพิ่มลง Google Calendar"
+                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-blue-600 rounded"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => onQuickStatus(ev.job)}
+                                  title="อัปเดตสถานะ"
+                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-amber-600 rounded cursor-pointer"
+                                >
+                                  <Wrench className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onEdit(ev.job)}
+                                  title="แก้ไข"
+                                  className="p-1 hover:bg-slate-100 text-slate-500 hover:text-indigo-600 rounded cursor-pointer"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1366,6 +1445,16 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                           )}
                           <span>👤 Sale: <strong className="text-slate-900">{job.sale || '-'}</strong></span>
                           <span>🔧 ช่างผู้ทำ: <strong className="text-slate-900">{job.technician || '-'}</strong></span>
+                          {job.estimatedReturnDate && (
+                            <span className="bg-amber-50 text-amber-900 font-semibold px-2 py-0.5 rounded-md border border-amber-200">
+                              ⏳ นัดส่งมอบคืน: <strong>{formatDateDisplay(job.estimatedReturnDate)}</strong>
+                            </span>
+                          )}
+                          {job.shipmentDate && (
+                            <span className="bg-blue-50 text-blue-900 font-semibold px-2 py-0.5 rounded-md border border-blue-200">
+                              🚚 Shipment: <strong>{formatDateDisplay(job.shipmentDate)}</strong>
+                            </span>
+                          )}
                           <span className="font-mono text-emerald-700">
                             🌐 Login: <strong>{job.createdBy || activeUserEmail}</strong>
                           </span>
