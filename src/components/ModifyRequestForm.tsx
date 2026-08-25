@@ -46,6 +46,7 @@ import {
   calculateWorkDetailsTotalQuantity,
   calculateQueueBasedEstimate,
 } from '../utils/formatters';
+import { ModifyDateEstimatorModal } from './ModifyDateEstimatorModal';
 
 interface ModifyRequestFormProps {
   initialData?: ModifyJobItem | null;
@@ -101,6 +102,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
   const [bulkWorkDetailsInput, setBulkWorkDetailsInput] = useState('');
   const [showBulkInput, setShowBulkInput] = useState(false);
   const [showRuleGuide, setShowRuleGuide] = useState(false);
+  const [isEstimatorModalOpen, setIsEstimatorModalOpen] = useState(false);
   const [ruleGuideTab, setRuleGuideTab] = useState<'GENERAL' | 'PAINTING'>('GENERAL');
   const [hasManuallySetWorkType, setHasManuallySetWorkType] = useState(false);
   const [autoSyncQuantityFromItems, setAutoSyncQuantityFromItems] = useState(true);
@@ -482,8 +484,8 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in">
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 lg:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in">
+      <div className="relative w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[95vh] flex flex-col">
         {/* Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
@@ -491,28 +493,27 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                 <span>{initialData ? 'แก้ไขข้อมูลงาน Modify' : 'สร้างคำขอ Modify ใหม่'}</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 font-mono">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 font-mono font-bold">
                   {formData.id}
                 </span>
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5">
-                บันทึกลง Google Sheet ตาราง Modify ครบถ้วนทั้ง 16 ข้อมูลสำคัญ
-              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isLoading}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              disabled={isLoading}
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1 text-slate-800">
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 lg:p-7 space-y-6 flex-1 text-slate-800">
           {/* Section 1: ข้อมูลคำขอ (Request Metadata) */}
           <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80">
             <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200">
@@ -574,20 +575,6 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                     className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
                   />
                   <User className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
-                </div>
-              </div>
-
-              {/* Google Login / Creator badge */}
-              <div className="sm:col-span-2 md:col-span-4 bg-white p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-semibold">ชื่อ login เข้าใช้งาน (Google):</span>
-                  <span className="text-xs font-bold text-slate-900 px-2.5 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-mono flex items-center gap-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                    {formData.createdBy || activeLoginEmail}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  สิทธิ์การเพิ่มโดย: <strong className="text-emerald-700 font-mono">tawatchai.works@gmail.com</strong>
                 </div>
               </div>
             </div>
@@ -908,7 +895,7 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
                 <ListOrdered className="w-4 h-4 text-emerald-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    3. รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น (10-Line Work & Quantity Breakdown)
+                    3. รายละเอียดงาน
                   </h3>
                   <p className="text-[11px] text-slate-500">
                     ระบุรายละเอียดงานและจำนวนชิ้นของแต่ละรายการ (สูงสุด 10 รายการ)
@@ -1160,6 +1147,28 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Date Estimator Modal */}
+      <ModifyDateEstimatorModal
+        isOpen={isEstimatorModalOpen}
+        onClose={() => setIsEstimatorModalOpen(false)}
+        initialSoDate={formData.requestDate || getCurrentDateFormatted()}
+        initialQuantity={formData.quantity}
+        initialWorkType={workTypeDisplay.hasPainting ? 'PAINTING' : 'GENERAL'}
+        onApply={(calculated) => {
+          setFormData((prev) => ({
+            ...prev,
+            requestDate: calculated.soDate,
+            engineerHandoverDate: calculated.receiveDate,
+            estimatedReturnDate: calculated.estimatedReturnDate,
+            shipmentDate: calculated.shipmentDate,
+            quantity: calculated.quantity,
+            workType: calculated.workType,
+            workTypes: [calculated.workType],
+          }));
+          setHasManuallySetWorkType(true);
+        }}
+      />
     </div>
   );
 };

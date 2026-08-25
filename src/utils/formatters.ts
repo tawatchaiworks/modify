@@ -136,6 +136,11 @@ export const formatThaiFullDate = (dateStr: string): string => {
   }
 };
 
+export const formatDateThai = (dateStr?: string): string => {
+  if (!dateStr) return '-';
+  return formatThaiFullDate(dateStr);
+};
+
 export const formatThaiMonthYear = (year: number, monthIndex: number): string => {
   const thaiMonth = THAI_MONTHS[monthIndex];
   const thaiYear = year + 543;
@@ -449,24 +454,25 @@ export interface QuantityWorkingDaysRule {
 
 // เกณฑ์งาน Modify ทั่วไป
 export const GENERAL_WORKING_DAYS_RULES: QuantityWorkingDaysRule[] = [
-  { min: 1, max: 10, days: 1, label: '1 - 10 ชิ้น: 1 วันทำการ' },
-  { min: 11, max: 30, days: 2, label: '11 - 30 ชิ้น: 2 วันทำการ' },
-  { min: 31, max: 50, days: 3, label: '31 - 50 ชิ้น: 3 วันทำการ' },
-  { min: 51, max: 70, days: 4, label: '51 - 70 ชิ้น: 4 วันทำการ' },
-  { min: 71, max: 80, days: 5, label: '71 - 80 ชิ้น: 5 วันทำการ' },
-  { min: 81, max: 150, days: 6, label: '81 - 150 ชิ้น: 6 วันทำการ' },
-  { min: 151, max: 200, days: 8, label: '151 - 200 ชิ้น: 8 วันทำการ' },
-  { min: 201, max: 300, days: 10, label: '201 - 300 ชิ้น: 10 วันทำการ' },
+  { min: 1, max: 10, days: 1, label: '1 - 10 ตัว: 1 วันทำการ' },
+  { min: 11, max: 20, days: 2, label: '11 - 20 ตัว: 2 วันทำการ' },
+  { min: 21, max: 40, days: 3, label: '21 - 40 ตัว: 3 วันทำการ' },
+  { min: 41, max: 50, days: 3, label: '41 - 50 ตัว: 3 วันทำการ' },
+  { min: 51, max: 100, days: 5, label: '51 - 100 ตัว: 5 วันทำการ' },
+  { min: 101, max: 200, days: 7, label: '101 - 200 ตัว: 7 วันทำการ' },
+  { min: 201, max: 300, days: 10, label: '201 - 300 ตัว: 10 วันทำการ' },
+  { min: 301, max: 99999, days: 15, label: '301 ตัวขึ้นไป: 15 วันทำการ' },
 ];
 
 // เกณฑ์กรณีงานทำสี (Painting / Coating)
-// 1-10 ชิ้น 3 วันทำการ, 11-20 ชิ้น 4 วันทำการ, 21-50 ชิ้น 7 วันทำการ, 51-100 ชิ้น 10 วันทำการ, 101-300 ชิ้น 15 วันทำการ
+// 1-10 ตัว 3 วันทำการ, 11-20 ตัว 5 วันทำการ, 21-40 ตัว 7 วันทำการ, 51-100 ตัว 10 วันทำการ, 101 ตัวขึ้นไป 15 วันทำการ
 export const PAINTING_WORKING_DAYS_RULES: QuantityWorkingDaysRule[] = [
-  { min: 1, max: 10, days: 3, label: '1 - 10 ชิ้น: 3 วันทำการ' },
-  { min: 11, max: 20, days: 4, label: '11 - 20 ชิ้น: 4 วันทำการ' },
-  { min: 21, max: 50, days: 7, label: '21 - 50 ชิ้น: 7 วันทำการ' },
-  { min: 51, max: 100, days: 10, label: '51 - 100 ชิ้น: 10 วันทำการ' },
-  { min: 101, max: 300, days: 15, label: '101 - 300 ชิ้น: 15 วันทำการ' },
+  { min: 1, max: 10, days: 3, label: '1 - 10 ตัว: 3 วันทำการ' },
+  { min: 11, max: 20, days: 5, label: '11 - 20 ตัว: 5 วันทำการ' },
+  { min: 21, max: 40, days: 7, label: '21 - 40 ตัว: 7 วันทำการ' },
+  { min: 41, max: 50, days: 7, label: '41 - 50 ตัว: 7 วันทำการ' },
+  { min: 51, max: 100, days: 10, label: '51 - 100 ตัว: 10 วันทำการ' },
+  { min: 101, max: 99999, days: 15, label: '101 ตัวขึ้นไป: 15 วันทำการ' },
 ];
 
 export const QUANTITY_WORKING_DAYS_RULES = GENERAL_WORKING_DAYS_RULES;
@@ -491,7 +497,7 @@ export const WORK_TYPE_OPTIONS: WorkTypeOptionItem[] = [
     icon: '🔨',
     badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
     activeClass: 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-600/30',
-    description: 'งานตัด กัด กลึง เจาะ ดัดแปลงชิ้นงานทั่วไป',
+    description: 'งานเปลี่ยน ใส่ ประกอบ',
   },
   {
     id: 'PAINTING',
@@ -646,7 +652,28 @@ export const detectIsPaintingJob = (input?: any): boolean => {
 };
 
 /**
+ * บวกจำนวนวันปฏิทินธรรมดา (Calendar Days) เข้ากับวันที่
+ */
+export const addCalendarDays = (startDateStr: string, daysToAdd: number): string => {
+  if (!startDateStr) return '';
+  const iso = normalizeToISODate(startDateStr);
+  if (!iso) return '';
+
+  const [y, m, d] = iso.split('-').map((v) => parseInt(v, 10));
+  const date = new Date(y, m - 1, d);
+  if (isNaN(date.getTime())) return iso;
+
+  date.setDate(date.getDate() + daysToAdd);
+  const finalYear = date.getFullYear();
+  const finalMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const finalDay = String(date.getDate()).padStart(2, '0');
+  return `${finalYear}-${finalMonth}-${finalDay}`;
+};
+
+/**
  * คำนวณจำนวนวันทำการที่ต้องใช้จากจำนวนชิ้นงาน (Quantity) ตามประเภทงาน
+ * - งานทำสี: 1-10 ตัว: 3 วัน, 11-20 ตัว: 5 วัน, 21-40 (ถึง 50) ตัว: 7 วัน, 51-100 ตัว: 10 วัน, 101+ ตัว: 15 วันทำการ
+ * - งาน Modify ทั่วไป: 1-10 ตัว: 1 วัน, 11-20 ตัว: 2 วัน, 21-40 (ถึง 50) ตัว: 3 วัน, 51-100 ตัว: 5 วัน, 101-200 ตัว: 7 วัน, 201-300 ตัว: 10 วัน, 300+ ตัว: 10 วันทำการ
  */
 export const getWorkingDaysForQuantity = (
   qtyInput: number | string,
@@ -664,26 +691,53 @@ export const getWorkingDaysForQuantity = (
   // กรณีกรอบเกณฑ์งานทำสี (Painting Rules)
   if (isPainting) {
     if (qty >= 1 && qty <= 10) return 3;
-    if (qty >= 11 && qty <= 20) return 4;
+    if (qty >= 11 && qty <= 20) return 5;
     if (qty >= 21 && qty <= 50) return 7;
     if (qty >= 51 && qty <= 100) return 10;
-    if (qty >= 101 && qty <= 300) return 15;
-    // มากกว่า 300 ชิ้น: 15 วัน + เพิ่ม 1 วันทำการต่อทุก 20 ชิ้น
-    return 15 + Math.ceil((qty - 300) / 20);
+    return 15; // 101 ตัวขึ้นไป: 15 วันทำการ
   }
 
   // กรณีกรอบเกณฑ์งาน Modify ทั่วไป (General Modify Rules)
   if (qty >= 1 && qty <= 10) return 1;
-  if (qty >= 11 && qty <= 30) return 2;
-  if (qty >= 31 && qty <= 50) return 3;
-  if (qty >= 51 && qty <= 70) return 4;
-  if (qty >= 71 && qty <= 80) return 5;
-  if (qty >= 81 && qty <= 150) return 6;
-  if (qty >= 151 && qty <= 200) return 8;
+  if (qty >= 11 && qty <= 20) return 2;
+  if (qty >= 21 && qty <= 50) return 3;
+  if (qty >= 51 && qty <= 100) return 5;
+  if (qty >= 101 && qty <= 200) return 7;
   if (qty >= 201 && qty <= 300) return 10;
+  return 15; // 301 ตัวขึ้นไป: 15 วันทำการ
+};
 
-  // มากกว่า 300 ชิ้น: ทุกๆ 30 ชิ้นเพิ่ม 1 วันทำการ
-  return 10 + Math.ceil((qty - 300) / 30);
+/**
+ * คำนวณไทม์ไลน์โดยประมาณนับจากวันที่ได้ SO (+10 วันทำการหลังจากได้ SO + วันทำการตามจำนวนงาน)
+ */
+export const calculateTimelineFromSoDate = (
+  soDateStr: string,
+  qtyInput: number | string,
+  workType: string | string[] = 'GENERAL',
+  soLeadWorkingDays = 10,
+  includeSaturday = false
+): {
+  soDate: string;
+  receiveDate: string;
+  workingDays: number;
+  estimatedReturnDate: string;
+  shipmentDate: string;
+  ruleLabel: string;
+  isPainting: boolean;
+} => {
+  const soDate = normalizeToISODate(soDateStr) || getCurrentDateFormatted();
+  const receiveDate = addWorkingDays(soDate, soLeadWorkingDays, includeSaturday);
+  const estimate = calculateEstimatedCompletion(receiveDate, qtyInput, workType, includeSaturday);
+
+  return {
+    soDate,
+    receiveDate,
+    workingDays: estimate.workingDays,
+    estimatedReturnDate: estimate.calculatedDate,
+    shipmentDate: estimate.calculatedDate,
+    ruleLabel: estimate.ruleLabel,
+    isPainting: estimate.isPainting,
+  };
 };
 
 /**

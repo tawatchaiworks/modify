@@ -314,48 +314,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
 
   return (
     <div className="space-y-5">
-      {/* 1. Google Account & Permissions Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
-            <UserCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-slate-300">ชื่อ login เข้าใช้งาน (Google):</span>
-              <span className="text-xs font-bold text-white px-2.5 py-0.5 rounded-lg bg-blue-500/30 border border-blue-400/30 font-mono flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                {activeUserEmail}
-              </span>
-              {isAuthorizedEmail ? (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <Check className="w-3 h-3" /> สิทธิ์ผู้ดูแลระบบ (Admin)
-                </span>
-              ) : (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  ผู้ใช้งานระบบ
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              🛡️ สิทธิ์การเพิ่มและจัดการแผนงาน Google Sheets: <strong className="text-blue-300 font-mono">tawatchai.works@gmail.com</strong>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end md:self-auto">
-          <button
-            type="button"
-            onClick={onAddNew}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ สร้างคำขอ Modify</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Calendar Header & Action Toolbar */}
+      {/* Calendar Header & Action Toolbar */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Left: View Mode Switcher (Day, Week, Month) */}
         <div className="flex flex-wrap items-center gap-3">
@@ -504,21 +463,32 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
           ))}
         </div>
 
-        {/* Status Filter Selector */}
-        <div className="flex items-center gap-1.5 self-end md:self-auto">
-          <span className="text-slate-500 font-semibold">สถานะงาน/QC:</span>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden font-medium"
+        {/* Status Filter Selector & Add Button */}
+        <div className="flex items-center gap-3 self-end md:self-auto">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 font-semibold text-xs">สถานะ:</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden font-medium"
+            >
+              <option value="ALL">สถานะทั้งหมด</option>
+              <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (IN PROGRESS)</option>
+              <option value="FINISH">🟢 เสร็จสิ้นแล้ว (FINISH)</option>
+              <option value="COMPLETE">✅ ตรวจผ่าน (COMPLETE)</option>
+              <option value="EDIT">⚠️ ส่งกลับแก้ไข (EDIT)</option>
+              <option value="WAITING">⏳ รอตรวจ (WAITING)</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={onAddNew}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
           >
-            <option value="ALL">สถานะทั้งหมด</option>
-            <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (IN PROGRESS)</option>
-            <option value="FINISH">🟢 เสร็จสิ้นแล้ว (FINISH)</option>
-            <option value="COMPLETE">✅ ตรวจผ่าน (COMPLETE)</option>
-            <option value="EDIT">⚠️ ส่งกลับแก้ไข (EDIT)</option>
-            <option value="WAITING">⏳ รอตรวจ (WAITING)</option>
-          </select>
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>+ สร้างคำขอ Modify</span>
+          </button>
         </div>
       </div>
 
@@ -727,7 +697,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                     </span>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    แสดงรายละเอียด: ชื่อเซลล์, ชื่อโครงการ, So No., ชื่อช่างผู้ทำ และชื่อ login Google
+                    แสดงรายละเอียด: ชื่อเซลล์, ชื่อโครงการ, So No., ชื่อช่างผู้ทำ
                   </p>
                 </div>
               </div>
@@ -791,7 +761,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                         <th className="py-3 px-3.5">ชื่อโครงการ & ลูกค้า</th>
                         <th className="py-3 px-3.5">ชื่อเซลล์ (Sale)</th>
                         <th className="py-3 px-3.5">ชื่อช่าง (Technician)</th>
-                        <th className="py-3 px-3.5">ชื่อ login เข้าใช้งาน (Google)</th>
                         <th className="py-3 px-3.5">กำหนดการสำคัญ</th>
                         <th className="py-3 px-3.5">สถานะงาน / QC</th>
                         <th className="py-3 px-3.5 text-right">การจัดการ</th>
@@ -862,16 +831,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               <span className="text-[10px] text-slate-400 block mt-0.5">
                                 จำนวน: <strong className="text-blue-700">{job.quantity}</strong>
                               </span>
-                            </td>
-
-                            {/* Login User (Google) */}
-                            <td className="py-3.5 px-3.5 align-top">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[11px]">
-                                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span className="truncate max-w-[140px]" title={loginUser}>
-                                  {loginUser}
-                                </span>
-                              </div>
                             </td>
 
                             {/* Milestones */}
@@ -1241,9 +1200,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                                 <span>เซลล์: <strong className="text-slate-800">{ev.job.sale || '-'}</strong></span>
                                 <span>ช่าง: <strong className="text-slate-800">{ev.job.technician || '-'}</strong></span>
                               </div>
-                              <div className="text-[9px] text-emerald-700 font-mono truncate">
-                                login: {ev.job.createdBy || activeUserEmail}
-                              </div>
                             </div>
 
                             {/* Action Buttons */}
@@ -1455,9 +1411,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               🚚 Shipment: <strong>{formatDateDisplay(job.shipmentDate)}</strong>
                             </span>
                           )}
-                          <span className="font-mono text-emerald-700">
-                            🌐 Login: <strong>{job.createdBy || activeUserEmail}</strong>
-                          </span>
                           <span>จำนวน: <strong className="text-blue-700">{job.quantity}</strong></span>
                         </div>
 

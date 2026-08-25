@@ -15,6 +15,7 @@ import {
   Database,
   Printer,
   Bell,
+  Calculator,
 } from 'lucide-react';
 import { GoogleSpreadsheetInfo, ViewMode } from '../types';
 
@@ -30,6 +31,7 @@ interface HeaderProps {
   onToggleAutoSync?: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onOpenNewForm: () => void;
+  onOpenEstimator?: () => void;
   onOpenPrintReport?: () => void;
   onRefresh: () => void;
   onLogin: () => void;
@@ -49,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleAutoSync,
   onViewModeChange,
   onOpenNewForm,
+  onOpenEstimator,
   onOpenPrintReport,
   onRefresh,
   onLogin,
@@ -75,9 +78,6 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
                   Google Sheet Sync
                 </span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                <span>LUMENCRAFT • ตารางบันทึกข้อมูลและติดตามสถานะงาน Modify ทั้ง 16 รายการ</span>
               </div>
             </div>
           </div>
@@ -188,6 +188,20 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Printer className="w-4 h-4 text-blue-600" />
                 <span className="hidden sm:inline">พิมพ์รายงาน A4</span>
+              </button>
+            )}
+
+            {/* Estimator Button */}
+            {onOpenEstimator && (
+              <button
+                id="header-open-estimator-btn"
+                type="button"
+                onClick={onOpenEstimator}
+                title="เปิดเครื่องคำนวณประมาณการวันเวลา (+10 วันทำการหลัง SO + วันทำการ)"
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer active:scale-95"
+              >
+                <Calculator className="w-4 h-4 text-amber-600" />
+                <span className="hidden sm:inline">คำนวณวันเวลา</span>
               </button>
             )}
 

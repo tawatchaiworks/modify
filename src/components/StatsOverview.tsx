@@ -146,34 +146,6 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
           );
         })}
       </div>
-
-      {/* Quick KPI Strip */}
-      {onOpenKpi && (
-        <div
-          onClick={onOpenKpi}
-          className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-3 sm:px-4 sm:py-2.5 rounded-2xl border border-blue-900/60 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer hover:shadow-xs transition-all group"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-xl bg-amber-400 text-slate-950 font-bold shadow-2xs">
-              <Award className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>KPI สมรรถนะช่าง & อัตราความสำเร็จ:</span>
-                <span className="text-emerald-400 font-black">QC Pass {qcPassRate}%</span>
-                <span className="text-slate-400">•</span>
-                <span className="text-blue-300">เสร็จสมบูรณ์ {completionRate}%</span>
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-blue-200 group-hover:text-white font-medium flex items-center gap-1">
-              <span>เปิดแดชบอร์ด KPI รายบุคคล & กราฟวิเคราะห์</span>
-              <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

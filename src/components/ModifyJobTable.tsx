@@ -651,7 +651,7 @@ export const ModifyJobTable: React.FC<ModifyJobTableProps> = ({
                           <td colSpan={11} className="p-4">
                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                               <h4 className="text-xs font-bold text-slate-900 mb-2 flex items-center justify-between">
-                                <span>รายละเอียดงาน 10 บรรทัด & จำนวนชิ้น ({job.id}):</span>
+                                <span>รายละเอียดงาน ({job.id}):</span>
                                 {job.remarks && (
                                   <span className="text-[11px] text-slate-500 font-normal">
                                     หมายเหตุ: <strong className="text-slate-700">{job.remarks}</strong>

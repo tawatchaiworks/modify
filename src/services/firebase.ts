@@ -20,8 +20,47 @@ provider.setCustomParameters({
   prompt: 'select_account',
 });
 
+const TOKEN_KEY = 'google_oauth_access_token';
+const TOKEN_TIME_KEY = 'google_oauth_token_timestamp';
+
+export const getStoredAccessToken = (): string | null => {
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const timestamp = localStorage.getItem(TOKEN_TIME_KEY);
+    if (token) {
+      if (timestamp) {
+        const elapsed = Date.now() - parseInt(timestamp, 10);
+        // OAuth access tokens generally valid for up to 1 hour; allow 3 hours window or until rejected
+        if (elapsed < 3 * 3600 * 1000) {
+          return token;
+        }
+      } else {
+        return token;
+      }
+    }
+  } catch (e) {
+    console.warn('LocalStorage error:', e);
+  }
+  return null;
+};
+
+export const saveAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(TOKEN_TIME_KEY, Date.now().toString());
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_TIME_KEY);
+    }
+  } catch (e) {
+    console.warn('LocalStorage error:', e);
+  }
+};
+
 let isSigningIn = false;
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = getStoredAccessToken();
 
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
@@ -29,10 +68,12 @@ export const initAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
+      const storedToken = cachedAccessToken || getStoredAccessToken();
+      if (storedToken) {
+        cachedAccessToken = storedToken;
+        if (onAuthSuccess) onAuthSuccess(user, storedToken);
       } else if (!isSigningIn) {
-        // Token not cached in memory yet (e.g. after page refresh)
+        // Fallback: if user is authenticated in Firebase
         if (onAuthFailure) onAuthFailure();
       }
     } else {
@@ -51,10 +92,18 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       throw new Error('Failed to obtain Google OAuth access token from sign-in.');
     }
 
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: unknown) {
-    console.error('Sign in error:', error);
+    saveAccessToken(credential.accessToken);
+    return { user: result.user, accessToken: credential.accessToken };
+  } catch (error: any) {
+    if (
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/cancelled-popup-request' ||
+      error?.message?.includes('closed-by-user')
+    ) {
+      // User closed the popup window - not an application fault
+      return null;
+    }
+    console.warn('Sign in issue:', error?.message || error);
     throw error;
   } finally {
     isSigningIn = false;
@@ -62,14 +111,14 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 };
 
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  return cachedAccessToken || getStoredAccessToken();
 };
 
 export const setCachedAccessToken = (token: string | null) => {
-  cachedAccessToken = token;
+  saveAccessToken(token);
 };
 
 export const logout = async (): Promise<void> => {
   await signOut(auth);
-  cachedAccessToken = null;
+  saveAccessToken(null);
 };

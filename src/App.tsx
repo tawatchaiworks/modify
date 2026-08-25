@@ -24,6 +24,7 @@ import {
   googleSignIn,
   logout,
   getAccessToken,
+  getStoredAccessToken,
 } from './services/firebase';
 import {
   findExistingSpreadsheet,
@@ -53,6 +54,7 @@ import { PrintStatusReportModal } from './components/PrintStatusReportModal';
 import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { DeliveryAlertModal } from './components/DeliveryAlertModal';
+import { ModifyDateEstimatorModal } from './components/ModifyDateEstimatorModal';
 import { formatDateDisplay, getOneDayDeliveryAlertJobs } from './utils/formatters';
 
 // Sample initial mock data for preview if not signed in yet
@@ -222,6 +224,7 @@ export default function App() {
   });
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
   const [isDeliveryAlertOpen, setIsDeliveryAlertOpen] = useState(false);
+  const [isEstimatorOpen, setIsEstimatorOpen] = useState(false);
   const [hasAutoOpenedAlert, setHasAutoOpenedAlert] = useState(false);
 
   // 1-Day Before Delivery Alert Jobs list
@@ -270,7 +273,10 @@ export default function App() {
         setToken(null);
       }
     );
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // 2. Load or Sync Google Sheet when logged in
@@ -381,10 +387,22 @@ export default function App() {
         setUser(result.user);
         setToken(result.accessToken);
         showToast(`เข้าสู่ระบบในชื่อ ${result.user.displayName || result.user.email}`, 'success');
+      } else {
+        // User closed or dismissed the popup
+        showToast('ยกเลิกการเข้าสู่ระบบ (หน้าต่างถูกปิด)', 'info');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
-      showToast(err.message || 'เข้าสู่ระบบไม่สำเร็จ', 'error');
+      const isPopupBlocked = err?.code === 'auth/popup-blocked' || err?.message?.includes('popup-blocked');
+      const isPopupClosed = err?.code === 'auth/popup-closed-by-user' || err?.message?.includes('closed-by-user') || err?.code === 'auth/cancelled-popup-request';
+
+      if (isPopupBlocked) {
+        showToast('เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ (Popup Blocked) กรุณาอนุญาตป๊อปอัปสำหรับหน้านี้ หรือเปิดแอปในหน้าต่างใหม่', 'error');
+      } else if (isPopupClosed) {
+        showToast('ยกเลิกการเข้าสู่ระบบ (หน้าต่างป๊อปอัปถูกปิด)', 'info');
+      } else {
+        console.error('Login error:', err);
+        showToast(err.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -696,6 +714,7 @@ export default function App() {
           setEditingJob(null);
           setIsFormOpen(true);
         }}
+        onOpenEstimator={() => setIsEstimatorOpen(true)}
         onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
         onRefresh={loadSheetData}
         onLogin={handleLogin}
@@ -742,84 +761,6 @@ export default function App() {
           onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status })}
           onOpenKpi={() => setViewMode('kpi')}
         />
-
-        {/* Active Filter Report Banner */}
-        {selectedFilter !== 'ALL' && (
-          <div className="mb-4 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`p-2 rounded-xl border flex items-center justify-center ${
-                  selectedFilter === 'COMPLETE' || selectedFilter === 'PASS'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : selectedFilter === 'EDIT' || selectedFilter === 'REJECT'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : selectedFilter === 'FINISH'
-                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                    : selectedFilter === 'IN_PROGRESS'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                }`}
-              >
-                {(selectedFilter === 'COMPLETE' || selectedFilter === 'PASS') && <CheckCircle2 className="w-4 h-4" />}
-                {(selectedFilter === 'EDIT' || selectedFilter === 'REJECT') && <XCircle className="w-4 h-4" />}
-                {selectedFilter === 'FINISH' && <Sparkles className="w-4 h-4" />}
-                {selectedFilter === 'IN_PROGRESS' && <Wrench className="w-4 h-4" />}
-                {selectedFilter === 'WAITING' && <Clock className="w-4 h-4" />}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-medium">กำลังแสดงรายงาน:</span>
-                  <span className="text-sm font-bold text-slate-900">
-                    {selectedFilter === 'COMPLETE' || selectedFilter === 'PASS'
-                      ? 'เฉพาะงานที่ตรวจผ่านแล้ว (COMPLETE)'
-                      : selectedFilter === 'EDIT' || selectedFilter === 'REJECT'
-                      ? 'เฉพาะงานที่ส่งกลับไปแก้ไข (EDIT)'
-                      : selectedFilter === 'FINISH'
-                      ? 'เฉพาะงานที่เสร็จสมบูรณ์แล้ว (FINISH)'
-                      : selectedFilter === 'IN_PROGRESS'
-                      ? 'เฉพาะงานที่กำลังดำเนินการ / กับ Engineer'
-                      : 'เฉพาะงานที่รอตรวจสอบ (WAITING)'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    {filteredJobs.length} รายการ
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {selectedFilter === 'COMPLETE' || selectedFilter === 'PASS'
-                    ? 'คัดกรองเฉพาะงานที่ผ่านการตรวจสอบคุณภาพ (QC Complete)'
-                    : selectedFilter === 'EDIT' || selectedFilter === 'REJECT'
-                    ? 'คัดกรองเฉพาะงานที่ต้องนำกลับไปแก้ไขหรือปรับปรุงเพิ่มเติม'
-                    : selectedFilter === 'FINISH'
-                    ? 'คัดกรองเฉพาะงานที่มีสถานะงานเสร็จสมบูรณ์ 100%'
-                    : selectedFilter === 'IN_PROGRESS'
-                    ? 'คัดกรองเฉพาะงานที่กำลังดำเนินการ / อยู่ระหว่างดำเนินงานของช่าง'
-                    : 'คัดกรองเฉพาะงานที่รอการตรวจเช็ค'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
-                title="Print Preview ขนาด A4 รายงานตามสถานะนี้"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-800 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all cursor-pointer shadow-2xs"
-              >
-                <Printer className="w-3.5 h-3.5 text-blue-600" />
-                <span>พิมพ์รายงานสถานะนี้ (A4)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedFilter('ALL')}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>แสดงงานทั้งหมด (ล้างตัวกรอง)</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Views: Table, Cards, or Calendar */}
         {viewMode === 'table' && (
@@ -968,6 +909,17 @@ export default function App() {
         alertJobs={deliveryAlertJobs}
         onClose={() => setIsDeliveryAlertOpen(false)}
         onSelectJob={(job) => setQuickStatusJob(job)}
+      />
+
+      {/* Date Estimator Modal (Header Trigger) */}
+      <ModifyDateEstimatorModal
+        isOpen={isEstimatorOpen}
+        onClose={() => setIsEstimatorOpen(false)}
+        onApply={(calculated) => {
+          setIsEstimatorOpen(false);
+          setEditingJob(null);
+          setIsFormOpen(true);
+        }}
       />
 
       {/* Workspace Safety Confirmation Modal */}
