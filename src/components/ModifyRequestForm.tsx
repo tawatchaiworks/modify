@@ -25,6 +25,8 @@ import {
   RefreshCw,
   Trash2,
   PlusCircle,
+  ArrowLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
 import {
@@ -46,6 +48,7 @@ import {
   calculateWorkDetailsTotalQuantity,
   calculateQueueBasedEstimate,
 } from '../utils/formatters';
+import { getStoredTechnicians, parseTechnicians, formatTechniciansList, DEFAULT_TECHNICIANS } from '../utils/technicianStore';
 import { ModifyDateEstimatorModal } from './ModifyDateEstimatorModal';
 
 interface ModifyRequestFormProps {
@@ -484,321 +487,354 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 lg:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in">
-      <div className="relative w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[95vh] flex flex-col">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300">
-              <FileText className="w-5 h-5" />
+    <div
+      id="modify-request-full-page"
+      className="fixed inset-0 z-50 flex flex-col w-screen h-screen bg-[#f4f6f8] overflow-hidden animate-in fade-in duration-200"
+    >
+      {/* Top Navigation Bar - Full Width Web App Header */}
+      <header className="px-4 sm:px-6 lg:px-8 py-3 bg-[#1e232d] text-white flex items-center justify-between border-b border-slate-700 shrink-0 shadow-md z-10">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-600/80 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer"
+            title="กลับสู่หน้ารายการ (Esc)"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">กลับสู่หน้ารายการ</span>
+            <span className="sm:hidden">กลับ</span>
+          </button>
+
+          <div className="h-6 w-px bg-slate-700 hidden sm:block" />
+
+          <div>
+            {/* Breadcrumb */}
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400">
+              <span>หน้าหลัก</span>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+              <span>จัดการงาน Modify</span>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+              <span className="text-blue-300 font-semibold">{formData.id}</span>
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                <span>{initialData ? 'แก้ไขข้อมูลงาน Modify' : 'สร้างคำขอ Modify ใหม่'}</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30 font-mono font-bold">
-                  {formData.id}
-                </span>
-              </h2>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-sm sm:text-base lg:text-lg font-black text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-400" />
+                <span>{initialData ? 'แก้ไขข้อมูลงาน Modify' : 'สร้างคำขอ Modify ใหม่ (New Request)'}</span>
+              </h1>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 font-mono font-bold">
+                {formData.id}
+              </span>
+              <span className="hidden md:inline-flex text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-medium">
+                ⚡ ซิงค์อัตโนมัติลง Google Sheet
+              </span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isLoading}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 lg:p-7 space-y-6 flex-1 text-slate-800">
-          {/* Section 1: ข้อมูลคำขอ (Request Metadata) */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <h3 className="text-sm font-bold text-slate-900">1. ข้อมูลเวลาและผู้ส่งคำขอ (Request Info)</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  วันที่ Request <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.requestDate}
-                  onChange={(e) => setFormData({ ...formData, requestDate: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
-                />
-              </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isLoading}
+            title="ปิดหน้านี้ (Esc)"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  เดือนที่ Request <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.requestMonth}
-                  onChange={(e) => setFormData({ ...formData, requestMonth: e.target.value })}
-                  placeholder="เช่น สิงหาคม 2026"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
-                />
+      {/* Full Page Responsive Form Body */}
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
+        <div className="overflow-y-auto flex-1 p-3 sm:p-5 lg:p-6 text-slate-800 bg-[#f4f6f8]">
+          <div className="max-w-[1920px] mx-auto space-y-4 sm:space-y-5">
+            {/* Section 1: ข้อมูลคำขอ (Request Metadata) */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 lg:p-6 border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2 mb-3.5 pb-2.5 border-b border-slate-100">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-extrabold text-slate-900">1. ข้อมูลเวลาและผู้ส่งคำขอ (Request Info)</h3>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    วันที่ Request <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.requestDate}
+                    onChange={(e) => setFormData({ ...formData, requestDate: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-medium"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  เวลาที่ Request <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={formData.requestTime}
-                  onChange={(e) => setFormData({ ...formData, requestTime: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ผู้ส่งคำขอ <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    เดือนที่ Request <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={formData.requester}
-                    onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-                    placeholder="ระบุชื่อผู้ส่งคำขอ"
-                    className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
+                    value={formData.requestMonth}
+                    onChange={(e) => setFormData({ ...formData, requestMonth: e.target.value })}
+                    placeholder="เช่น สิงหาคม 2026"
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-medium"
                   />
-                  <User className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Section 2: ข้อมูลการขายและลูกค้า (Sales & Project Details) */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200">
-              <Briefcase className="w-4 h-4 text-indigo-600" />
-              <h3 className="text-sm font-bold text-slate-900">2. ข้อมูลการขายและโครงการ (Sales & Customer)</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Sale (ผู้ดูแลการขาย)
-                </label>
-                <input
-                  type="text"
-                  value={formData.sale}
-                  onChange={(e) => setFormData({ ...formData, sale: e.target.value })}
-                  placeholder="เช่น สมชาย / ธนภัทร"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Sale So No. (เลขที่ SO)
-                </label>
-                <div className="relative">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    เวลาที่ Request <span className="text-rose-500">*</span>
+                  </label>
                   <input
-                    type="text"
-                    value={formData.saleSoNo}
-                    onChange={(e) => setFormData({ ...formData, saleSoNo: e.target.value })}
-                    placeholder="เช่น SO-2026-0894"
-                    className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-mono font-semibold text-blue-900"
-                  />
-                  <Hash className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Cutomer (ลูกค้า) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
+                    type="time"
                     required
-                    value={formData.customer}
-                    onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                    placeholder="เช่น บริษัท สยามออโต้พาร์ท จำกัด"
-                    className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold"
+                    value={formData.requestTime}
+                    onChange={(e) => setFormData({ ...formData, requestTime: e.target.value })}
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-medium"
                   />
-                  <Building className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ผู้ส่งคำขอ <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={formData.requester}
+                      onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
+                      placeholder="ระบุชื่อผู้ส่งคำขอ"
+                      className="w-full pl-8.5 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-900"
+                    />
+                    <User className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Project (ชื่อโครงการ / งาน)
-                </label>
-                <input
-                  type="text"
-                  value={formData.project}
-                  onChange={(e) => setFormData({ ...formData, project: e.target.value })}
-                  placeholder="เช่น New Line Assembly Jig"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
-                />
+            {/* Section 2: ข้อมูลการขายและลูกค้า (Sales & Project Details) */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 lg:p-6 border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2 mb-3.5 pb-2.5 border-b border-slate-100">
+                <Briefcase className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-extrabold text-slate-900">2. ข้อมูลการขายและโครงการ (Sales & Customer)</h3>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Sale (ผู้ดูแลการขาย)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sale}
+                    onChange={(e) => setFormData({ ...formData, sale: e.target.value })}
+                    placeholder="เช่น สมชาย / ธนภัทร"
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden"
+                  />
+                </div>
 
-              {/* ประเภทงาน (Work Type) Multi-Select 1-2 Options */}
-              <div className="sm:col-span-2 lg:col-span-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 flex items-center gap-2">
-                      <span>ประเภทงาน (Work Type)</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                        เลือกได้ 1 หรือ 2 ประเภท ({selectedWorkTypes.length}/2)
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Sale So No. (เลขที่ SO)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.saleSoNo}
+                      onChange={(e) => setFormData({ ...formData, saleSoNo: e.target.value })}
+                      placeholder="เช่น SO-2026-0894"
+                      className="w-full pl-8.5 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-mono font-semibold text-blue-900"
+                    />
+                    <Hash className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Cutomer (ลูกค้า) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={formData.customer}
+                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                      placeholder="เช่น บริษัท สยามออโต้พาร์ท จำกัด"
+                      className="w-full pl-8.5 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-900"
+                    />
+                    <Building className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Project (ชื่อโครงการ / งาน)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.project}
+                    onChange={(e) => setFormData({ ...formData, project: e.target.value })}
+                    placeholder="เช่น New Line Assembly Jig"
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-medium"
+                  />
+                </div>
+
+                {/* ประเภทงาน (Work Type) Multi-Select 1-2 Options */}
+                <div className="sm:col-span-2 md:col-span-3 xl:col-span-4 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 flex items-center gap-2">
+                        <span>ประเภทงาน (Work Type)</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                          เลือกได้ 1 หรือ 2 ประเภท ({selectedWorkTypes.length}/2)
+                        </span>
+                      </label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        คลิกเลือกเพื่อรวมงานได้ 1 หรือ 2 อย่าง (เช่น Modify ทั่วไป + ทำสี) ระบบจะคำนวณ Lead-Time ตามประเภทงานที่เลือก
+                      </p>
+                    </div>
+                    {workTypeDisplay.hasPainting && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold">
+                        <Palette className="w-3.5 h-3.5 text-purple-600" />
+                        <span>ใช้เกณฑ์ทำสี (Painting Lead-Time)</span>
                       </span>
-                    </label>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      คลิกเลือกเพื่อรวมงานได้ 1 หรือ 2 อย่าง (เช่น Modify ทั่วไป + ทำสี) ระบบจะคำนวณ Lead-Time ตามประเภทงานที่เลือก
-                    </p>
+                    )}
                   </div>
-                  {workTypeDisplay.hasPainting && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200 text-[10px] font-bold">
-                      <Palette className="w-3 h-3 text-purple-600" />
-                      <span>ใช้เกณฑ์ทำสี (Painting Lead-Time)</span>
-                    </span>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {WORK_TYPE_OPTIONS.map((opt) => {
-                    const isSelected = selectedWorkTypes.includes(opt.id);
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => handleToggleWorkType(opt.id)}
-                        className={`flex items-start gap-3 p-3 rounded-xl text-left transition-all border cursor-pointer ${
-                          isSelected
-                            ? `${opt.activeClass} border-transparent shadow-xs scale-[1.01]`
-                            : 'bg-slate-50/70 hover:bg-slate-100 text-slate-700 border-slate-200/80 hover:border-slate-300'
-                        }`}
-                      >
-                        <span className="text-xl shrink-0 mt-0.5">{opt.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-sm font-bold truncate">{opt.shortName}</span>
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                                isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
-                              }`}
-                            >
-                              {isSelected ? '✓ เลือกแล้ว' : '+ เลือก'}
-                            </span>
-                          </div>
-                          <p className={`text-xs mt-1 leading-normal ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
-                            {opt.description}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ระดับความเร่งด่วน (Urgency Level / Status) */}
-              <div className="sm:col-span-2 lg:col-span-3 bg-white p-3 rounded-xl border border-slate-200">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-0.5 flex items-center gap-1.5">
-                      <span>สถานะระดับความเร่งด่วน (Urgency Status)</span>
-                      <span className="text-[10px] font-semibold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">Google Sheet</span>
-                    </label>
-                    <p className="text-[11px] text-slate-500">
-                      ระบุสถานะงานปกติ งานด่วน หรือด่วนมาก เพื่อซิงค์กับ Google Sheet และจัดการคิวงาน
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {URGENCY_OPTIONS.map((opt) => {
-                      const isSelected = (formData.urgencyLevel || 'NORMAL') === opt.value;
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {WORK_TYPE_OPTIONS.map((opt) => {
+                      const isSelected = selectedWorkTypes.includes(opt.id);
                       return (
                         <button
-                          key={opt.value}
+                          key={opt.id}
                           type="button"
-                          onClick={() => setFormData({ ...formData, urgencyLevel: opt.value })}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          onClick={() => handleToggleWorkType(opt.id)}
+                          className={`flex items-start gap-2.5 p-3 rounded-xl text-left transition-all border cursor-pointer ${
                             isSelected
-                              ? opt.value === 'VERY_URGENT'
-                                ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-600/30'
-                                : opt.value === 'URGENT'
-                                ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-500/30'
-                                : 'bg-slate-700 text-white shadow-xs ring-2 ring-slate-700/30'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              ? `${opt.activeClass} border-transparent shadow-xs scale-[1.01]`
+                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-300'
                           }`}
                         >
-                          <span>{opt.icon}</span>
-                          <span>{opt.label}</span>
+                          <span className="text-xl shrink-0 mt-0.5">{opt.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs sm:text-sm font-bold truncate">{opt.shortName}</span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                  isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+                                }`}
+                              >
+                                {isSelected ? '✓ เลือกแล้ว' : '+ เลือก'}
+                              </span>
+                            </div>
+                            <p className={`text-[11px] mt-1 leading-normal ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
+                              {opt.description}
+                            </p>
+                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Shipment Date (กำหนดส่งมอบสินค้า)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleSyncShipmentWithEstimate}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 transition-colors"
-                    title="คลิกเพื่ออ้างอิงจากวันประมาณการส่งมอบคืน"
-                  >
-                    <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
-                    <span>อ้างอิงวันประมาณการ ({formatDateDisplay(formData.estimatedReturnDate || calculatedEstimate.calculatedDate)})</span>
-                  </button>
+                {/* ระดับความเร่งด่วน (Urgency Level / Status) */}
+                <div className="sm:col-span-2 md:col-span-3 xl:col-span-4 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-0.5 flex items-center gap-1.5">
+                        <span>สถานะระดับความเร่งด่วน (Urgency Status)</span>
+                        <span className="text-[10px] font-semibold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">Google Sheet</span>
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        ระบุสถานะงานปกติ งานด่วน หรือด่วนมาก เพื่อซิงค์กับ Google Sheet และจัดการคิวงาน
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {URGENCY_OPTIONS.map((opt) => {
+                        const isSelected = (formData.urgencyLevel || 'NORMAL') === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, urgencyLevel: opt.value })}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              isSelected
+                                ? opt.value === 'VERY_URGENT'
+                                  ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-600/30'
+                                  : opt.value === 'URGENT'
+                                  ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-500/30'
+                                  : 'bg-slate-700 text-white shadow-xs ring-2 ring-slate-700/30'
+                                : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                          >
+                            <span>{opt.icon}</span>
+                            <span>{opt.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={formData.shipmentDate}
-                    onChange={(e) => setFormData({ ...formData, shipmentDate: e.target.value })}
-                    className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-800"
-                  />
-                  <Truck className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
-                </div>
-              </div>
 
-              {/* จำนวนสินค้าหลัก พร้อมการอ้างอิงยอดรวมจากข้อ 1-10 */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    จำนวน (Quantity) <span className="text-rose-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowRuleGuide(!showRuleGuide)}
-                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                  >
-                    <Info className="w-3.5 h-3.5" />
-                    <span>
-                      เกณฑ์วัน ({calculatedEstimate.workingDays} วัน - {workTypeDisplay.hasPainting ? 'มีงานทำสี' : 'ทั่วไป'})
-                    </span>
-                  </button>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Shipment Date (กำหนดส่งมอบสินค้า)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSyncShipmentWithEstimate}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 transition-colors"
+                      title="คลิกเพื่ออ้างอิงจากวันประมาณการส่งมอบคืน"
+                    >
+                      <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
+                      <span>อ้างอิงวันประมาณการ ({formatDateDisplay(formData.estimatedReturnDate || calculatedEstimate.calculatedDate)})</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={formData.shipmentDate}
+                      onChange={(e) => setFormData({ ...formData, shipmentDate: e.target.value })}
+                      className="w-full pl-8.5 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-800"
+                    />
+                    <Truck className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
                 </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={formData.quantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                    placeholder="เช่น 10 หรือ 50 ชิ้น"
-                    className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-black text-blue-950"
-                  />
-                  <Layers className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+
+                {/* จำนวนสินค้าหลัก พร้อมการอ้างอิงยอดรวมจากข้อ 1-10 */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      จำนวน (Quantity) <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRuleGuide(!showRuleGuide)}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      <span>
+                        เกณฑ์วัน ({calculatedEstimate.workingDays} วัน - {workTypeDisplay.hasPainting ? 'มีงานทำสี' : 'ทั่วไป'})
+                      </span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={formData.quantity}
+                      onChange={(e) => handleQuantityChange(e.target.value)}
+                      placeholder="เช่น 10 หรือ 50 ชิ้น"
+                      className="w-full pl-8.5 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-black text-blue-950"
+                    />
+                    <Layers className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
                 </div>
               </div>
-            </div>
 
             {/* Collapsible Quantity Working Days Rule Guide */}
             {showRuleGuide && (
@@ -1051,27 +1087,73 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {/* ช่างผู้ทำ (Technician) */}
+              {/* ช่างผู้ทำ (Technician) - รองรับ 1 คนขึ้นไป */}
               <div className="sm:col-span-1 md:col-span-1">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ช่างผู้ทำ / ผู้รับผิดชอบ (Technician)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    ช่างผู้ทำ / ผู้รับผิดชอบ (Technician)
+                  </label>
+                  <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-1.5 py-0.2 rounded">
+                    เลือกได้ ≥ 1 คน
+                  </span>
+                </div>
                 <div className="relative">
                   <input
                     type="text"
                     value={formData.technician || ''}
                     onChange={(e) => setFormData({ ...formData, technician: e.target.value })}
-                    placeholder="พิมพ์ชื่อช่างผู้รับผิดชอบ..."
+                    placeholder="พิมพ์หรือกดเลือกช่าง (เช่น ฟารอส, ช่างรักษ์, มีน)"
                     className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-800"
                   />
                   <UserCheck className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
                 </div>
+                {/* Multi-Select Quick Selection Chips from Roster */}
+                <div className="space-y-1 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] text-slate-500 font-medium">กดเลือกช่าง:</span>
+                    {getStoredTechnicians().map((t) => {
+                      const selectedTechs = parseTechnicians(formData.technician);
+                      const isSelected = selectedTechs.some((st) => st.toLowerCase() === t.name.toLowerCase());
+
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            let next: string[];
+                            if (isSelected) {
+                              next = selectedTechs.filter((st) => st.toLowerCase() !== t.name.toLowerCase());
+                            } else {
+                              next = [...selectedTechs, t.name];
+                            }
+                            setFormData({ ...formData, technician: formatTechniciansList(next) });
+                          }}
+                          className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-[#2c241c] text-white border-[#2c241c] shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-slate-400'}`} />
+                          <span>{t.name}</span>
+                          {isSelected && <span className="text-[9px] text-amber-300">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {parseTechnicians(formData.technician).length > 1 && (
+                    <div className="text-[10px] text-blue-700 font-medium bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
+                      <span>👥 มอบหมายร่วม {parseTechnicians(formData.technician).length} คน:</span>
+                      <span className="font-bold">{parseTechnicians(formData.technician).join(', ')}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* รับสินค้าวันที่ */}
+              {/* วันที่ช่างรับสินค้า */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  รับสินค้าวันที่
+                  วันที่ช่างรับสินค้า
                 </label>
                 <input
                   type="date"
@@ -1117,36 +1199,54 @@ export const ModifyRequestForm: React.FC<ModifyRequestFormProps> = ({
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200">
-            <div className="text-xs text-slate-500">
-              * ข้อมูลจะถูกจัดเก็บและซิงค์ไปยัง Google Sheet ตาราง modify ทันทีที่บันทึก
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isLoading}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                <span>{initialData ? 'บันทึกการแก้ไขลง Sheet' : 'บันทึกคำขอลง Google Sheet'}</span>
-              </button>
+          </div>
+        </div>
+
+        {/* Sticky Bottom Action Bar */}
+        <div className="px-4 sm:px-6 lg:px-8 py-3 bg-white border-t border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 shadow-lg z-10">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-700">
+            <span className="flex items-center gap-1.5 font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+              <span>📦 จำนวนรวม:</span>
+              <span className="text-blue-700 font-extrabold">{formData.quantity || 0} ชิ้น</span>
+            </span>
+
+            {formData.shipmentDate && (
+              <span className="flex items-center gap-1.5 font-bold text-slate-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                <Truck className="w-3.5 h-3.5 text-blue-600" />
+                <span>กำหนดส่งมอบ: {formatDateDisplay(formData.shipmentDate)}</span>
+              </span>
+            )}
+
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 font-medium ml-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>ซิงค์ตรงไปยัง Google Sheet ตาราง modify</span>
             </div>
           </div>
-        </form>
-      </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isLoading}
+              className="px-5 py-2 text-sm font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-300 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-7 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-extrabold rounded-xl shadow-md shadow-blue-500/25 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              <span>{initialData ? 'บันทึกการแก้ไขลง Sheet' : 'บันทึกคำขอลง Google Sheet'}</span>
+            </button>
+          </div>
+        </div>
+      </form>
 
       {/* Date Estimator Modal */}
       <ModifyDateEstimatorModal

@@ -6,11 +6,7 @@ import {
   XCircle,
   Sparkles,
   ClipboardList,
-  AlertCircle,
   Printer,
-  Award,
-  BarChart3,
-  ChevronRight,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
 
@@ -27,20 +23,26 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   selectedFilter,
   onSelectFilter,
   onPrintStatusReport,
-  onOpenKpi,
 }) => {
   const total = jobs.length;
-  const finished = jobs.filter((j) => j.finishStatus === 'FINISH').length;
+  const pending = jobs.filter(
+    (j) =>
+      (j.finishStatus === 'PENDING' || (!j.finishStatus && !j.engineerHandoverDate)) &&
+      j.finishStatus !== 'FINISH' &&
+      j.finishStatus !== 'IN_PROGRESS' &&
+      j.finishStatus !== 'CANCELLED'
+  ).length;
+  const finished = jobs.filter(
+    (j) => j.finishStatus === 'FINISH' && (j.inspectionResult === 'COMPLETE' || j.inspectionResult === 'PASS')
+  ).length;
   const inProgress = jobs.filter(
     (j) =>
-      j.finishStatus === 'IN_PROGRESS' ||
-      (Boolean(jobHandover(j)) && j.finishStatus !== 'FINISH' && j.finishStatus !== 'CANCELLED')
+      (j.finishStatus === 'IN_PROGRESS' || (Boolean(j.engineerHandoverDate) && j.finishStatus !== 'PENDING')) &&
+      j.finishStatus !== 'FINISH' &&
+      j.finishStatus !== 'CANCELLED'
   ).length;
   const completedQc = jobs.filter((j) => j.inspectionResult === 'COMPLETE' || j.inspectionResult === 'PASS').length;
   const editQc = jobs.filter((j) => j.inspectionResult === 'EDIT' || j.inspectionResult === 'REJECT').length;
-  const waitingQc = jobs.filter(
-    (j) => j.inspectionResult === 'WAITING' || j.inspectionResult === 'PENDING' || !j.inspectionResult
-  ).length;
   const withEngineerDate = jobs.filter((j) => Boolean(j.engineerHandoverDate) && j.finishStatus !== 'FINISH').length;
 
   function jobHandover(j: ModifyJobItem) {
@@ -57,8 +59,17 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
       activeColor: 'ring-2 ring-blue-600 bg-blue-50/80',
     },
     {
+      id: 'PENDING',
+      title: 'รอดำเนินการ (PENDING)',
+      count: pending,
+      subtext: `${pending} รายการรอเริ่มงาน`,
+      icon: Clock,
+      color: 'bg-slate-100 text-slate-800 border-slate-300',
+      activeColor: 'ring-2 ring-slate-600 bg-slate-100/90',
+    },
+    {
       id: 'IN_PROGRESS',
-      title: 'กำลังดำเนินการ / กับ Engineer',
+      title: 'กำลังดำเนินการ / ช่างรับงาน',
       count: inProgress,
       subtext: `${withEngineerDate} รายการระบุวันเริ่มงานแล้ว`,
       icon: Wrench,
@@ -91,14 +102,10 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
     },
   ];
 
-  const evaluatedQc = completedQc + editQc;
-  const qcPassRate = evaluatedQc > 0 ? Math.round((completedQc / evaluatedQc) * 100) : 100;
-  const completionRate = total > 0 ? Math.round((finished / total) * 100) : 0;
-
   return (
     <div className="space-y-3 mb-6">
-      {/* 5 Main Stat Filter Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      {/* 6 Main Stat Filter Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           const isActive = selectedFilter === stat.id;

@@ -9,12 +9,16 @@ import {
   Calculator,
   Sparkles,
   Info,
+  Clock,
+  ArrowRight,
+  Layers,
 } from 'lucide-react';
 import {
   getCurrentDateFormatted,
   formatDateThai,
   addWorkingDays,
   getWorkingDaysForQuantity,
+  getDaysDifference,
   GENERAL_WORKING_DAYS_RULES,
   PAINTING_WORKING_DAYS_RULES,
 } from '../utils/formatters';
@@ -71,6 +75,10 @@ export const ModifyDateEstimatorModal: React.FC<ModifyDateEstimatorModalProps> =
     const estimatedReturnDate = addWorkingDays(receiveDate, workingDays, includeSaturday);
     const shipmentDate = estimatedReturnDate;
 
+    // 4. คำนวณวันรวม
+    const totalWorkingDays = leadDays + workingDays;
+    const totalCalendarDays = Math.max(1, getDaysDifference(baseSoDate, estimatedReturnDate));
+
     const rules = workType === 'PAINTING' ? PAINTING_WORKING_DAYS_RULES : GENERAL_WORKING_DAYS_RULES;
     const matchedRule = rules.find((r) => numericQuantity >= r.min && numericQuantity <= r.max);
 
@@ -78,6 +86,8 @@ export const ModifyDateEstimatorModal: React.FC<ModifyDateEstimatorModalProps> =
       baseSoDate,
       receiveDate,
       workingDays,
+      totalWorkingDays,
+      totalCalendarDays,
       estimatedReturnDate,
       shipmentDate,
       matchedRule,
@@ -97,6 +107,9 @@ export const ModifyDateEstimatorModal: React.FC<ModifyDateEstimatorModalProps> =
       `⏱️ ระยะเวลาทำงานของช่าง: ${calculated.workingDays} วันทำการ (${includeSaturday ? 'นับวันเสาร์' : 'หยุดเสาร์-อาทิตย์'})\n` +
       `🏁 ประมาณการส่งมอบคืน: ${formatDateThai(calculated.estimatedReturnDate)}\n` +
       `📦 กำหนดส่งสินค้า (Shipment Date): ${formatDateThai(calculated.shipmentDate)}\n` +
+      `⏳ รวมระยะเวลาทั้งหมด: ${calculated.totalWorkingDays} วันทำการ (${calculated.totalCalendarDays} วันตามปฏิทิน)\n` +
+      `   • วันเตรียมการส่งมอบช่าง: ${leadDays} วันทำการ\n` +
+      `   • วันที่ช่างลงมือปฏิบัติงาน: ${calculated.workingDays} วันทำการ\n` +
       `------------------------------------`;
 
     navigator.clipboard.writeText(text);
@@ -365,6 +378,43 @@ export const ModifyDateEstimatorModal: React.FC<ModifyDateEstimatorModalProps> =
                       <span className="text-sm font-extrabold text-emerald-300">
                         {formatDateThai(calculated.estimatedReturnDate)}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Total Duration / Summary Showcase Box */}
+                  <div className="mt-3.5 p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-blue-500/15 to-indigo-500/15 border border-amber-400/35 shadow-inner space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>สรุปวันรวมทั้งหมด (Total Duration):</span>
+                      </span>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30 font-mono">
+                        รวม {calculated.totalWorkingDays} วันทำการ
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2.5 rounded-xl bg-white/10 border border-white/10">
+                        <span className="text-[10px] text-slate-300 block">วันทำการรวม (Working Days):</span>
+                        <div className="text-base font-extrabold text-amber-300 flex items-baseline gap-1 mt-0.5">
+                          <span>{calculated.totalWorkingDays}</span>
+                          <span className="text-xs font-normal text-slate-300">วันทำการ</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          (เตรียมของ {leadDays} วัน + ช่าง {calculated.workingDays} วัน)
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-white/10 border border-white/10">
+                        <span className="text-[10px] text-slate-300 block">วันปฏิทินรวม (Calendar Days):</span>
+                        <div className="text-base font-extrabold text-blue-300 flex items-baseline gap-1 mt-0.5">
+                          <span>{calculated.totalCalendarDays}</span>
+                          <span className="text-xs font-normal text-slate-300">วัน</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-0.5 truncate" title={`${formatDateThai(calculated.baseSoDate)} ถึง ${formatDateThai(calculated.estimatedReturnDate)}`}>
+                          นับรวมวันหยุดเสาร์-อาทิตย์
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

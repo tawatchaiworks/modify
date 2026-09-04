@@ -22,6 +22,11 @@ import {
   parseUrgencyLevel,
   URGENCY_OPTIONS,
 } from '../utils/formatters';
+import {
+  getStoredTechnicians,
+  parseTechnicians,
+  formatTechniciansList,
+} from '../utils/technicianStore';
 import { ModifyDateEstimatorModal } from './ModifyDateEstimatorModal';
 
 interface StatusUpdateModalProps {
@@ -102,9 +107,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
       setFinishStatus('IN_PROGRESS');
       if (!engineerHandoverDate) setEngineerHandoverDate(today);
     } else if (res === 'WAITING') {
-      if (finishStatus === 'FINISH') {
-        setFinishStatus('IN_PROGRESS');
-      }
+      // WAITING is only active when Finish Status is FINISH
+      setFinishStatus('FINISH');
     }
   };
 
@@ -112,20 +116,22 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
     setFinishStatus(status);
     const today = getCurrentDateFormatted();
     if (status === 'FINISH') {
-      setInspectionResult('COMPLETE');
-      if (!inspectionDate) setInspectionDate(today);
+      // If not marked COMPLETE or EDIT yet, mark as WAITING for QC
+      if (inspectionResult !== 'COMPLETE' && inspectionResult !== 'EDIT') {
+        setInspectionResult('WAITING');
+      }
     } else if (status === 'IN_PROGRESS') {
       if (!engineerHandoverDate) {
         setEngineerHandoverDate(today);
         const autoCalc = calculateEstimatedCompletion(today, job.quantity, workType);
         if (!estimatedReturnDate) setEstimatedReturnDate(autoCalc.calculatedDate);
       }
-      if (inspectionResult === 'COMPLETE') {
-        setInspectionResult('WAITING');
+      if (inspectionResult === 'WAITING' || inspectionResult === 'COMPLETE') {
+        setInspectionResult('');
       }
-    } else if (status === 'PENDING') {
-      if (inspectionResult === 'COMPLETE') {
-        setInspectionResult('WAITING');
+    } else if (status === 'PENDING' || status === 'CANCELLED') {
+      if (inspectionResult === 'WAITING' || inspectionResult === 'COMPLETE') {
+        setInspectionResult('');
       }
     }
   };
@@ -146,10 +152,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
   };
 
   const handleQuickWaiting = () => {
+    setFinishStatus('FINISH');
     setInspectionResult('WAITING');
-    if (finishStatus === 'FINISH') {
-      setFinishStatus('IN_PROGRESS');
-    }
   };
 
   const handleQuickHandover = () => {
@@ -161,8 +165,8 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
     if (!shipmentDate) {
       setShipmentDate(autoCalc.calculatedDate);
     }
-    if (inspectionResult === 'COMPLETE') {
-      setInspectionResult('WAITING');
+    if (inspectionResult === 'WAITING' || inspectionResult === 'COMPLETE') {
+      setInspectionResult('');
     }
   };
 
@@ -254,18 +258,57 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 lg:p-7 space-y-5 flex-1 text-slate-800">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                ช่างผู้ทำ / ผู้รับผิดชอบ (Technician)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  ช่างผู้ทำ / ผู้รับผิดชอบ (Technician)
+                </label>
+                <span className="text-[10px] text-blue-600 font-medium bg-blue-50 px-1.5 py-0.2 rounded">
+                  3 ช่างหลัก: ฟารอส, ช่างรักษ์, มีน
+                </span>
+              </div>
               <div className="relative">
                 <input
                   type="text"
                   value={technician}
                   onChange={(e) => setTechnician(e.target.value)}
-                  placeholder="เช่น ช่างเอก, ช่างสมพร, ช่างวินัย"
+                  placeholder="เช่น ฟารอส, ช่างรักษ์, มีน"
                   className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-semibold text-slate-800"
                 />
                 <UserCheck className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+              </div>
+
+              {/* Quick chips for selecting technicians */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span className="text-[10px] text-slate-500 font-medium">กดเลือกช่าง:</span>
+                {getStoredTechnicians().map((t) => {
+                  const selectedTechs = parseTechnicians(technician);
+                  const isSelected = selectedTechs.some((st) => st.toLowerCase() === t.name.toLowerCase());
+
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        let next: string[];
+                        if (isSelected) {
+                          next = selectedTechs.filter((st) => st.toLowerCase() !== t.name.toLowerCase());
+                        } else {
+                          next = [...selectedTechs, t.name];
+                        }
+                        setTechnician(formatTechniciansList(next));
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-[#2c241c] text-white border-[#2c241c] shadow-2xs'
+                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-slate-400'}`} />
+                      <span>{t.name}</span>
+                      {isSelected && <span className="text-[9px] text-amber-300">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -335,7 +378,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  รับสินค้าวันที่ (ช่างเริ่ม)
+                  วันที่ช่างรับสินค้า
                 </label>
                 <div className="flex items-center gap-1">
                   <button
@@ -431,47 +474,67 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              ผลการตรวจสอบ (Inspection Result)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                ผลการตรวจสอบ (Inspection Result)
+              </label>
+              <span className="text-[11px] text-slate-500">
+                {finishStatus === 'FINISH' ? (
+                  <span className="text-amber-800 font-bold">⚡ งาน FINISH แล้ว: สถานะ WAITING พร้อมรอตรวจ QC</span>
+                ) : (
+                  <span className="text-slate-400">สถานะ WAITING จะแสดงเมื่อสถานะงานเป็น FINISH</span>
+                )}
+              </span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => handleSelectInspectionResult('WAITING')}
-                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  inspectionResult === 'WAITING' || inspectionResult === 'PENDING' || !inspectionResult
-                    ? 'bg-slate-700 text-white border-slate-700 shadow-xs ring-2 ring-slate-400/40'
+                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  finishStatus === 'FINISH' && (inspectionResult === 'WAITING' || inspectionResult === 'PENDING' || !inspectionResult)
+                    ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/50'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <span>⏳ WAITING</span>
-                <span className="text-[11px] opacity-80 font-normal">(รอตรวจ)</span>
+                <div className="flex items-center gap-1.5">
+                  <span>⏳ WAITING</span>
+                  <span className="text-[11px] font-normal opacity-90">(รอตรวจ)</span>
+                </div>
+                <span className="text-[10px] font-normal opacity-80">
+                  {finishStatus === 'FINISH' ? 'งานเสร็จแล้ว รอ QC ตรวจสอบ' : 'คลิกเพื่อตั้งค่าเป็น FINISH & รอตรวจ'}
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectInspectionResult('COMPLETE')}
-                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <span>✅ COMPLETE</span>
-                <span className="text-[11px] opacity-80 font-normal">(ตรวจผ่าน QC)</span>
+                <div className="flex items-center gap-1.5">
+                  <span>✅ COMPLETE</span>
+                  <span className="text-[11px] font-normal opacity-90">(ตรวจผ่าน QC)</span>
+                </div>
+                <span className="text-[10px] font-normal opacity-80">ผ่านการตรวจสอบคุณภาพ</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectInspectionResult('EDIT')}
-                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
                     ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-400/40'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <span>⚠️ EDIT</span>
-                <span className="text-[11px] opacity-80 font-normal">(ส่งกลับแก้ไข)</span>
+                <div className="flex items-center gap-1.5">
+                  <span>⚠️ EDIT</span>
+                  <span className="text-[11px] font-normal opacity-90">(ส่งกลับแก้ไข)</span>
+                </div>
+                <span className="text-[10px] font-normal opacity-80">ไม่ผ่าน QC ส่งกลับให้ช่างแก้ไข</span>
               </button>
             </div>
           </div>
@@ -517,7 +580,7 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                 }`}
               >
                 <span>✅ FINISH</span>
-                <span className="text-[10px] opacity-80 font-normal">เสร็จสมบูรณ์</span>
+                <span className="text-[10px] opacity-80 font-normal">เสร็จสมบูรณ์ (รอ QC)</span>
               </button>
 
               <button
@@ -572,14 +635,18 @@ export const StatusUpdateModal: React.FC<StatusUpdateModalProps> = ({
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                       : inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
                       ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      : finishStatus === 'FINISH'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}
                 >
                   {inspectionResult === 'COMPLETE' || inspectionResult === 'PASS'
                     ? '✅ ตรวจผ่าน (QC Pass)'
                     : inspectionResult === 'EDIT' || inspectionResult === 'REJECT'
                     ? '⚠️ ส่งกลับแก้ไข (QC Edit)'
-                    : '⏳ รอตรวจ (Waiting)'}
+                    : finishStatus === 'FINISH'
+                    ? '⏳ รอตรวจ (WAITING QC)'
+                    : '- ยังไม่ถึงขั้นตรวจ (รอช่าง FINISH) -'}
                 </span>
               </div>
             </div>

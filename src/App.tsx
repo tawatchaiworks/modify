@@ -30,6 +30,7 @@ import {
   findExistingSpreadsheet,
   createModifySpreadsheet,
   fetchModifyJobsFromSheet,
+  fetchModifyJobsFromPublicSheet,
   appendModifyJobToSheet,
   updateModifyJobInSheet,
   deleteModifyJobFromSheet,
@@ -41,6 +42,7 @@ import {
   DEFAULT_PRIMARY_SPREADSHEET_ID,
 } from './services/googleSheets';
 import { Header } from './components/Header';
+import { RightSidebarNav } from './components/RightSidebarNav';
 import { StatsOverview } from './components/StatsOverview';
 import { ModifyJobTable } from './components/ModifyJobTable';
 import { ModifyJobCardView } from './components/ModifyJobCardView';
@@ -55,119 +57,9 @@ import { SheetSettingsModal } from './components/SheetSettingsModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { DeliveryAlertModal } from './components/DeliveryAlertModal';
 import { ModifyDateEstimatorModal } from './components/ModifyDateEstimatorModal';
-import { formatDateDisplay, getOneDayDeliveryAlertJobs } from './utils/formatters';
-
-// Sample initial mock data for preview if not signed in yet
-const INITIAL_DEMO_JOBS: ModifyJobItem[] = [
-  {
-    rowNumber: 2,
-    id: 'ECR-202608-0001',
-    requestDate: '2026-08-24',
-    requestMonth: 'สิงหาคม 2026',
-    requestTime: '09:30',
-    requester: 'วิชัย การช่าง',
-    sale: 'สมชาย มั่นคง',
-    saleSoNo: 'SO-2026-0412',
-    customer: 'บริษัท ไทยยนตรกิจ ซัพพลาย จำกัด',
-    project: 'Robot Welding Jig Fixture',
-    shipmentDate: '2026-08-30',
-    workDetails: [
-      'ตรวจสอบขนาดพิกัด Jig Base กับ Drawing ล่าสุด Rev.C',
-      'กัดขยายร่องสล็อตด้านข้างเพิ่ม 3.0 mm',
-      'เจาะรูต๊าปเกลียว M8 จำนวน 4 ตำแหน่ง',
-      'เจียร์ปาดผิวหน้า Clamp Plate ให้เรียบ Flatness 0.02',
-      'ชุบผิว Hard Chrome เคลือบกันสนิม',
-      'ประกอบชุด Guide Pin ขนาด DIA 12 mm',
-      'ทดสอบการยึดชิ้นงานตัวอย่าง',
-      'วัดค่าพิกัดด้วย CMM Machine',
-      'ทำความสะอาดและลบครีบคมทั้งหมด',
-      'แพ็กกิ้งพร้อมส่งมอบงาน',
-    ],
-    workDetailQuantities: ['2 ชุด', '2 ชุด', '8 รู', '2 ชิ้น', '2 ชุด', '4 ชิ้น', '2 ชุด', '2 ชุด', '2 ชุด', '2 ชุด'],
-    modifyDetails: 'ดัดแปลงร่อง Clamp และปรับระยะสล็อตด้านข้าง 3 mm ตามสเปกใหม่ของลูกค้า ป้องกันชิ้นงานเอียงขณะเชื่อม',
-    quantity: '2 ชุด',
-    technician: 'ช่างสมพงษ์ (CNC)',
-    createdBy: 'tawatchai.works@gmail.com',
-    engineerHandoverDate: '2026-08-24',
-    estimatedReturnDate: '2026-08-27',
-    inspectionDate: '2026-08-27',
-    inspectionResult: 'PASS',
-    finishStatus: 'FINISH',
-    remarks: 'ทดสอบการจับยึดแล้ว แน่นหนา ไม่ติดขัด',
-  },
-  {
-    rowNumber: 3,
-    id: 'ECR-202608-0002',
-    requestDate: '2026-08-24',
-    requestMonth: 'สิงหาคม 2026',
-    requestTime: '13:45',
-    requester: 'มนัส สายผลิต',
-    sale: 'กนกวรรณ เพชรดี',
-    saleSoNo: 'SO-2026-0488',
-    customer: 'บริษัท เจแปนพรีซิชั่น เอ็นจิเนียริ่ง จำกัด',
-    project: 'Conveyor Guide Rail Modification',
-    shipmentDate: '2026-09-02',
-    workDetails: [
-      'ตัดต่อเพิ่มความยาวราง Guide Rail 150 mm',
-      'เชื่อม TIG สแตนเลส 304 ขัดเงาเบอร์ 400',
-      'ปรับระดับ Roller Bracket',
-      'ใส่แหวนรองเสริมความสูง 5 mm',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-    ],
-    workDetailQuantities: ['6 ชิ้น', '6 ชิ้น', '12 จุด', '24 ตัว', '', '', '', '', '', ''],
-    modifyDetails: 'เพิ่มระยะความยาวรางและเปลี่ยนมุมองศาทางเลี้ยว 15 องศา',
-    quantity: '6 ชิ้น',
-    technician: 'ช่างธนาวุฒิ (Weld/Sheet)',
-    createdBy: 'tawatchai.works@gmail.com',
-    engineerHandoverDate: '2026-08-24',
-    estimatedReturnDate: '2026-08-29',
-    inspectionDate: '',
-    inspectionResult: 'WAITING',
-    finishStatus: 'IN_PROGRESS',
-    remarks: 'รอนำเข้ากระบวนการเชื่อม TIG',
-  },
-  {
-    rowNumber: 4,
-    id: 'ECR-202608-0003',
-    requestDate: '2026-08-23',
-    requestMonth: 'สิงหาคม 2026',
-    requestTime: '10:15',
-    requester: 'ประสิทธิ์ วิศวกรโรงงาน',
-    sale: 'ธนากร มั่งมี',
-    saleSoNo: 'SO-2026-0520',
-    customer: 'บริษัท สยามออโต้พาร์ท แมนูแฟคเจอริ่ง จำกัด',
-    project: 'Inspection Jig Alignment Pin Set',
-    shipmentDate: '2026-08-25',
-    workDetails: [
-      'กลึงลดขนาดหัว Pin DIA 10 mm ลง 0.05 mm',
-      'ชุบแข็ง Induction Hardening ผิวหน้า',
-      'ขัดผิวละเอียด Ra 0.4',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-    ],
-    workDetailQuantities: ['10 ตัว', '10 ตัว', '10 ตัว', '', '', '', '', '', '', ''],
-    modifyDetails: 'ปรับลดขนาด Pin และเจียรผิวเรียบตามเกณฑ์ QC ล่าสุด',
-    quantity: '10 ตัว',
-    technician: 'ช่างเอกชัย (Machining)',
-    createdBy: 'tawatchai.works@gmail.com',
-    engineerHandoverDate: '2026-08-23',
-    estimatedReturnDate: '2026-08-25',
-    inspectionDate: '',
-    inspectionResult: 'WAITING',
-    finishStatus: 'IN_PROGRESS',
-    remarks: 'นัดส่งมอบวันพรุ่งนี้ เร่งส่งตรวจ QC ด่วน',
-  },
-];
+import { SearchStatusPopup } from './components/SearchStatusPopup';
+import { TechnicianQueueModal } from './components/TechnicianQueueModal';
+import { formatDateDisplay, getOneDayDeliveryAlertJobs, getCurrentDateFormatted } from './utils/formatters';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -183,7 +75,7 @@ export default function App() {
       sheetName: 'modify',
     };
   });
-  const [jobs, setJobs] = useState<ModifyJobItem[]>(INITIAL_DEMO_JOBS);
+  const [jobs, setJobs] = useState<ModifyJobItem[]>([]);
   const [selectedFilter, setSelectedFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isLoading, setIsLoading] = useState(false);
@@ -225,6 +117,9 @@ export default function App() {
   const [isSheetSettingsOpen, setIsSheetSettingsOpen] = useState(false);
   const [isDeliveryAlertOpen, setIsDeliveryAlertOpen] = useState(false);
   const [isEstimatorOpen, setIsEstimatorOpen] = useState(false);
+  const [isSearchTrackerOpen, setIsSearchTrackerOpen] = useState(false);
+  const [isTechnicianQueueOpen, setIsTechnicianQueueOpen] = useState(false);
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [hasAutoOpenedAlert, setHasAutoOpenedAlert] = useState(false);
 
   // 1-Day Before Delivery Alert Jobs list
@@ -279,49 +174,55 @@ export default function App() {
     };
   }, []);
 
-  // 2. Load or Sync Google Sheet when logged in
+  // 2. Load or Sync Google Sheet
   const loadSheetData = useCallback(async () => {
-    if (!user) return;
     setIsLoading(true);
     try {
       let targetSheet = spreadsheet;
 
-      // Always resolve to the connected/primary sheet
-      const found = await findExistingSpreadsheet();
-      if (found) {
-        targetSheet = found;
-        setSpreadsheet(found);
+      if (user) {
+        // Always resolve to the connected/primary sheet
+        const found = await findExistingSpreadsheet();
+        if (found) {
+          targetSheet = found;
+          setSpreadsheet(found);
+        }
       }
 
-      if (targetSheet) {
-        // Fetch records from Google Sheet
-        const sheetJobs = await fetchModifyJobsFromSheet(targetSheet.id, targetSheet.sheetName);
-        if (sheetJobs.length > 0) {
-          setJobs(sheetJobs);
-          jobsRef.current = sheetJobs;
-          lastSyncedHashRef.current = JSON.stringify(sheetJobs);
-          const nowStr = new Date().toLocaleTimeString('th-TH');
-          setLastAutoSyncTime(nowStr);
-          showToast(`ซิงค์ข้อมูลจาก Google Sheet "${targetSheet.name}" (${sheetJobs.length} รายการ) สำเร็จ!`, 'success');
-        } else {
-          setJobs([]);
-          jobsRef.current = [];
-          lastSyncedHashRef.current = JSON.stringify([]);
-          showToast(`เชื่อมต่อกับ Google Sheet "${targetSheet.name}" เรียบร้อย (ไม่มีแถวข้อมูล)`, 'info');
+      const sheetId = targetSheet?.id || DEFAULT_PRIMARY_SPREADSHEET_ID;
+      const sheetName = targetSheet?.sheetName || 'modify';
+
+      // Fetch records from Google Sheet
+      const sheetJobs = user
+        ? await fetchModifyJobsFromSheet(sheetId, sheetName)
+        : await fetchModifyJobsFromPublicSheet(sheetId, sheetName);
+
+      if (sheetJobs && sheetJobs.length > 0) {
+        setJobs(sheetJobs);
+        jobsRef.current = sheetJobs;
+        lastSyncedHashRef.current = JSON.stringify(sheetJobs);
+        const nowStr = new Date().toLocaleTimeString('th-TH');
+        setLastAutoSyncTime(nowStr);
+        if (user) {
+          showToast(`ซิงค์ข้อมูลจาก Google Sheet "${targetSheet?.name || 'ตาราง modify'}" (${sheetJobs.length} รายการ) สำเร็จ!`, 'success');
         }
+      } else {
+        setJobs([]);
+        jobsRef.current = [];
+        lastSyncedHashRef.current = JSON.stringify([]);
       }
     } catch (err: any) {
       console.error('Error loading Google Sheet data:', err);
-      showToast(err.message || 'ไม่สามารถโหลดข้อมูลจาก Google Sheet ได้', 'error');
+      if (user) {
+        showToast(err.message || 'ไม่สามารถโหลดข้อมูลจาก Google Sheet ได้', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
   }, [user, spreadsheet]);
 
   useEffect(() => {
-    if (user && token) {
-      loadSheetData();
-    }
+    loadSheetData();
   }, [user, token]);
 
   // 3. Auto-update to Google Sheet (ตาราง modify) every 3 seconds
@@ -414,7 +315,8 @@ export default function App() {
     setUser(null);
     setToken(null);
     setSpreadsheet(null);
-    setJobs(INITIAL_DEMO_JOBS);
+    setJobs([]);
+    loadSheetData();
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
   };
 
@@ -504,6 +406,33 @@ export default function App() {
     }
   };
 
+  // Quick finish status changer for Table / Cards directly
+  const handleQuickChangeFinishStatus = async (
+    job: ModifyJobItem,
+    newStatus: 'PENDING' | 'IN_PROGRESS' | 'FINISH' | 'CANCELLED' | string
+  ) => {
+    let updatedJob: ModifyJobItem = {
+      ...job,
+      finishStatus: newStatus as 'PENDING' | 'IN_PROGRESS' | 'FINISH' | 'CANCELLED',
+    };
+    const today = getCurrentDateFormatted();
+
+    if (newStatus === 'IN_PROGRESS') {
+      if (!updatedJob.engineerHandoverDate) {
+        updatedJob.engineerHandoverDate = today;
+      }
+    } else if (newStatus === 'FINISH') {
+      if (!updatedJob.finishDate) {
+        updatedJob.finishDate = today;
+      }
+      if (!updatedJob.inspectionResult) {
+        updatedJob.inspectionResult = 'WAITING';
+      }
+    }
+
+    await handleDirectUpdateJob(updatedJob);
+  };
+
   // Delete Job
   const handleDeleteJob = (job: ModifyJobItem) => {
     setConfirmModal({
@@ -539,6 +468,26 @@ export default function App() {
         }
       },
     });
+  };
+
+  // Batch rename technician in jobs
+  const handleBatchRenameJobTechnician = async (oldName: string, newName: string) => {
+    const updatedJobs = jobs.map((job) => {
+      if ((job.technician || '').trim().toLowerCase() === oldName.trim().toLowerCase()) {
+        return { ...job, technician: newName };
+      }
+      return job;
+    });
+    setJobs(updatedJobs);
+
+    if (user && spreadsheet) {
+      try {
+        await syncAllJobsToSheet(spreadsheet.id, updatedJobs, spreadsheet.sheetName);
+        showToast(`อัปเดตชื่อช่างจาก "${oldName}" เป็น "${newName}" ใน Google Sheet สำเร็จ`, 'success');
+      } catch (err: any) {
+        console.error('Failed to batch sync renamed technician:', err);
+      }
+    }
   };
 
   // Create new custom sheet
@@ -649,10 +598,19 @@ export default function App() {
   // Filter jobs based on top stats filter
   const filteredJobs = jobs.filter((job) => {
     if (selectedFilter === 'ALL') return true;
+    if (selectedFilter === 'PENDING') {
+      return (
+        (job.finishStatus === 'PENDING' || (!job.finishStatus && !job.engineerHandoverDate)) &&
+        job.finishStatus !== 'FINISH' &&
+        job.finishStatus !== 'IN_PROGRESS' &&
+        job.finishStatus !== 'CANCELLED'
+      );
+    }
     if (selectedFilter === 'IN_PROGRESS') {
       return (
-        job.finishStatus === 'IN_PROGRESS' ||
-        (Boolean(job.engineerHandoverDate) && job.finishStatus !== 'FINISH' && job.finishStatus !== 'CANCELLED')
+        (job.finishStatus === 'IN_PROGRESS' || (Boolean(job.engineerHandoverDate) && job.finishStatus !== 'PENDING')) &&
+        job.finishStatus !== 'FINISH' &&
+        job.finishStatus !== 'CANCELLED'
       );
     }
     if (selectedFilter === 'COMPLETE' || selectedFilter === 'PASS') {
@@ -664,12 +622,14 @@ export default function App() {
     if (selectedFilter === 'WAITING') {
       return job.inspectionResult === 'WAITING' || job.inspectionResult === 'PENDING' || !job.inspectionResult;
     }
-    if (selectedFilter === 'FINISH') return job.finishStatus === 'FINISH';
+    if (selectedFilter === 'FINISH') {
+      return job.finishStatus === 'FINISH' && (job.inspectionResult === 'COMPLETE' || job.inspectionResult === 'PASS');
+    }
     return true;
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#1e232a] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       {/* Toast Notification */}
       {notification && (
         <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-5 fade-in duration-200">
@@ -694,36 +654,24 @@ export default function App() {
       <Header
         user={user}
         spreadsheet={spreadsheet}
-        viewMode={viewMode}
         isLoading={isLoading}
-        isAutoSyncEnabled={isAutoSyncEnabled}
         isAutoSyncing={isAutoSyncing}
-        deliveryAlertCount={deliveryAlertJobs.length}
-        onOpenDeliveryAlert={() => setIsDeliveryAlertOpen(true)}
-        onToggleAutoSync={() => {
-          setIsAutoSyncEnabled(!isAutoSyncEnabled);
-          showToast(
-            !isAutoSyncEnabled
-              ? 'เปิดการ Auto Sync ข้อมูลลง Google Sheet ทุก 3 วินาที'
-              : 'หยุดการ Auto Sync ชั่วคราว',
-            'info'
-          );
-        }}
-        onViewModeChange={setViewMode}
-        onOpenNewForm={() => {
-          setEditingJob(null);
-          setIsFormOpen(true);
-        }}
-        onOpenEstimator={() => setIsEstimatorOpen(true)}
-        onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
+        searchTerm={globalSearchTerm}
+        onSearchTermChange={setGlobalSearchTerm}
         onRefresh={loadSheetData}
         onLogin={handleLogin}
         onLogout={handleLogout}
         onOpenSheetSettings={() => setIsSheetSettingsOpen(true)}
+        onOpenSearchStatus={(term) => {
+          if (typeof term === 'string') {
+            setGlobalSearchTerm(term);
+          }
+          setIsSearchTrackerOpen(true);
+        }}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 w-full max-w-[1920px] mx-auto px-3 sm:px-5 lg:px-7 py-5">
         {/* Google Sheet Sync Banner if not logged in */}
         {!user && (
           <div className="mb-6 p-4 sm:p-5 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-blue-800">
@@ -740,7 +688,7 @@ export default function App() {
             </div>
             <button
               onClick={handleLogin}
-              className="px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-900 font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-95 whitespace-nowrap self-stretch sm:self-auto flex items-center justify-center gap-2"
+              className="px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-900 font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all active:scale-95 whitespace-nowrap self-stretch sm:self-auto flex items-center justify-center gap-2 cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
@@ -753,87 +701,112 @@ export default function App() {
           </div>
         )}
 
-        {/* Stats Overview Cards */}
-        <StatsOverview
-          jobs={jobs}
-          selectedFilter={selectedFilter}
-          onSelectFilter={setSelectedFilter}
-          onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status })}
-          onOpenKpi={() => setViewMode('kpi')}
-        />
+        {/* 2-Column Responsive Layout: Content Area (Left) + Right Navigation Tabs (Right) */}
+        <div className="flex flex-col lg:flex-row items-start gap-6">
+          {/* Main Area: Stats + Active View */}
+          <div className="flex-1 min-w-0 w-full space-y-6">
+            {/* Stats Overview Cards */}
+            <StatsOverview
+              jobs={jobs}
+              selectedFilter={selectedFilter}
+              onSelectFilter={setSelectedFilter}
+              onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status })}
+              onOpenKpi={() => setViewMode('kpi')}
+            />
 
-        {/* Views: Table, Cards, or Calendar */}
-        {viewMode === 'table' && (
-          <ModifyJobTable
-            jobs={filteredJobs}
-            isLoading={isLoading}
-            onEdit={(job) => {
-              setEditingJob(job);
-              setIsFormOpen(true);
-            }}
-            onQuickStatus={(job) => setQuickStatusJob(job)}
-            onStartWork={(job) => setStartWorkJob(job)}
-            onViewTicket={(job) => setTicketJob(job)}
-            onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
-            onDelete={handleDeleteJob}
-            onAddNew={() => {
+            {/* Views: Table, Cards, Calendar, or KPI */}
+            {viewMode === 'table' && (
+              <ModifyJobTable
+                jobs={filteredJobs}
+                isLoading={isLoading}
+                onEdit={(job) => {
+                  setEditingJob(job);
+                  setIsFormOpen(true);
+                }}
+                onQuickStatus={(job) => setQuickStatusJob(job)}
+                onUpdateStatus={handleQuickChangeFinishStatus}
+                onStartWork={(job) => setStartWorkJob(job)}
+                onViewTicket={(job) => setTicketJob(job)}
+                onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
+                onDelete={handleDeleteJob}
+                onAddNew={() => {
+                  setEditingJob(null);
+                  setIsFormOpen(true);
+                }}
+              />
+            )}
+
+            {viewMode === 'cards' && (
+              <ModifyJobCardView
+                jobs={filteredJobs}
+                onEdit={(job) => {
+                  setEditingJob(job);
+                  setIsFormOpen(true);
+                }}
+                onQuickStatus={(job) => setQuickStatusJob(job)}
+                onUpdateStatus={handleQuickChangeFinishStatus}
+                onStartWork={(job) => setStartWorkJob(job)}
+                onViewTicket={(job) => setTicketJob(job)}
+                onDelete={handleDeleteJob}
+                onAddNew={() => {
+                  setEditingJob(null);
+                  setIsFormOpen(true);
+                }}
+              />
+            )}
+
+            {viewMode === 'calendar' && (
+              <ModifyJobCalendarView
+                jobs={jobs}
+                currentUserEmail={user?.email || 'tawatchai.works@gmail.com'}
+                currentUserName={user?.displayName || 'Tawatchai'}
+                onEdit={(job) => {
+                  setEditingJob(job);
+                  setIsFormOpen(true);
+                }}
+                onQuickStatus={(job) => setQuickStatusJob(job)}
+                onStartWork={(job) => setStartWorkJob(job)}
+                onViewTicket={(job) => setTicketJob(job)}
+                onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
+                onDelete={handleDeleteJob}
+                onAddNew={() => {
+                  setEditingJob(null);
+                  setIsFormOpen(true);
+                }}
+              />
+            )}
+
+            {viewMode === 'kpi' && (
+              <TechnicianKpiDashboard
+                jobs={jobs}
+                onSelectJob={(job) => {
+                  setTicketJob(job);
+                }}
+                onEditJob={(job) => {
+                  setEditingJob(job);
+                  setIsFormOpen(true);
+                }}
+              />
+            )}
+          </div>
+
+          {/* Right-Side Stacked Tabs & Actions Panel */}
+          <RightSidebarNav
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            onOpenNewForm={() => {
               setEditingJob(null);
               setIsFormOpen(true);
             }}
+            onOpenSearch={() => setIsSearchTrackerOpen(true)}
+            onOpenTechnicianQueue={() => setIsTechnicianQueueOpen(true)}
+            onOpenEstimator={() => setIsEstimatorOpen(true)}
+            onOpenPrintReport={() => setPrintStatusReport({ isOpen: true, status: selectedFilter })}
+            deliveryAlertCount={deliveryAlertJobs.length}
+            onOpenDeliveryAlert={() => setIsDeliveryAlertOpen(true)}
+            totalJobsCount={jobs.length}
           />
-        )}
-
-        {viewMode === 'cards' && (
-          <ModifyJobCardView
-            jobs={filteredJobs}
-            onEdit={(job) => {
-              setEditingJob(job);
-              setIsFormOpen(true);
-            }}
-            onQuickStatus={(job) => setQuickStatusJob(job)}
-            onStartWork={(job) => setStartWorkJob(job)}
-            onViewTicket={(job) => setTicketJob(job)}
-            onDelete={handleDeleteJob}
-            onAddNew={() => {
-              setEditingJob(null);
-              setIsFormOpen(true);
-            }}
-          />
-        )}
-
-        {viewMode === 'calendar' && (
-          <ModifyJobCalendarView
-            jobs={jobs}
-            currentUserEmail={user?.email || 'tawatchai.works@gmail.com'}
-            currentUserName={user?.displayName || 'Tawatchai'}
-            onEdit={(job) => {
-              setEditingJob(job);
-              setIsFormOpen(true);
-            }}
-            onQuickStatus={(job) => setQuickStatusJob(job)}
-            onStartWork={(job) => setStartWorkJob(job)}
-            onViewTicket={(job) => setTicketJob(job)}
-            onPrintStatusReport={(status) => setPrintStatusReport({ isOpen: true, status: status || selectedFilter })}
-            onDelete={handleDeleteJob}
-            onAddNew={() => {
-              setEditingJob(null);
-              setIsFormOpen(true);
-            }}
-          />
-        )}
-
-        {viewMode === 'kpi' && (
-          <TechnicianKpiDashboard
-            jobs={jobs}
-            onSelectJob={(job) => {
-              setTicketJob(job);
-            }}
-            onEditJob={(job) => {
-              setEditingJob(job);
-              setIsFormOpen(true);
-            }}
-          />
-        )}
+        </div>
       </main>
 
       {/* Modify Job Form Modal */}
@@ -920,6 +893,51 @@ export default function App() {
           setEditingJob(null);
           setIsFormOpen(true);
         }}
+      />
+
+      {/* Full-Screen Search & Job Status Tracker */}
+      <SearchStatusPopup
+        searchTerm={globalSearchTerm}
+        onSearchChange={setGlobalSearchTerm}
+        matchedJobs={jobs}
+        allJobs={jobs}
+        isOpen={isSearchTrackerOpen}
+        onClose={() => setIsSearchTrackerOpen(false)}
+        onSelectJob={(job) => {
+          setIsSearchTrackerOpen(false);
+        }}
+        onQuickStatus={(job) => setQuickStatusJob(job)}
+        onViewTicket={(job) => setTicketJob(job)}
+        onEditJob={(job) => {
+          setEditingJob(job);
+          setIsFormOpen(true);
+        }}
+        onAddNew={() => {
+          setEditingJob(null);
+          setIsFormOpen(true);
+        }}
+      />
+
+      {/* Technician Queue & Status Tracker Modal */}
+      <TechnicianQueueModal
+        isOpen={isTechnicianQueueOpen}
+        jobs={jobs}
+        onClose={() => setIsTechnicianQueueOpen(false)}
+        onSelectJob={(job) => {
+          setTicketJob(job);
+        }}
+        onQuickStatus={(job) => setQuickStatusJob(job)}
+        onStartWork={(job) => setStartWorkJob(job)}
+        onViewTicket={(job) => setTicketJob(job)}
+        onEditJob={(job) => {
+          setEditingJob(job);
+          setIsFormOpen(true);
+        }}
+        onAddNewJob={() => {
+          setEditingJob(null);
+          setIsFormOpen(true);
+        }}
+        onBatchRenameJobTechnician={handleBatchRenameJobTechnician}
       />
 
       {/* Workspace Safety Confirmation Modal */}

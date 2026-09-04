@@ -17,7 +17,7 @@ export const SHEET_HEADERS = [
   'จำนวน',
   'ระดับความเร่งด่วน',
   'ช่างผู้ทำ',
-  'ชื่อผู้รับผิดชอบ',
+  'วันที่ช่างรับสินค้า',
   'ประมาณการส่งมอบคืนวันที่',
   'ตรวจสอบวันที่',
   'ผลการตรวจสอบ (PASS OR REJECT)',
@@ -331,6 +331,263 @@ export const setupSheetHeaders = async (spreadsheetId: string, sheetTitle = DEFA
 };
 
 /**
+ * Maps raw 2D array of rows from Google Sheet into typed ModifyJobItem array
+ */
+export const parseSheetRowsToJobs = (allRows: (string | number)[][]): ModifyJobItem[] => {
+  if (!allRows || allRows.length === 0) return [];
+
+  // Check if first row is header row
+  let hasHeader = false;
+  let headerRow: string[] = [];
+  const firstColStr = String(allRows[0]?.[0] || '').toLowerCase();
+  if (firstColStr.includes('job') || firstColStr.includes('id') || firstColStr.includes('ลำดับ')) {
+    hasHeader = true;
+    headerRow = allRows[0].map((c) => String(c || '').toLowerCase().trim());
+  }
+
+  const dataRows = hasHeader ? allRows.slice(1) : allRows;
+
+  // Header column index map (if headers present)
+  let urgencyColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('เร่งด่วน') || h.includes('urgency') || h.includes('ความด่วน') || (h.includes('ด่วน') && !h.includes('ส่งมอบ'))) : -1;
+  let techColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ช่าง') || h.includes('technician')) : -1;
+  let handoverColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('วันที่ช่างรับสินค้า') || h.includes('ช่างรับสินค้า') || h.includes('รับสินค้า') || h.includes('ชื่อผู้รับผิดชอบ') || h.includes('ผู้รับผิดชอบ') || (h.includes('ส่งมอบ') && (h.includes('engineer') || h.includes('ชิ้นงาน')))) : -1;
+  let estReturnColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ประมาณการ')) : -1;
+  let inspectionDateColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ตรวจสอบวันที่')) : -1;
+  let qcColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('pass') || h.includes('ผลการตรวจ')) : -1;
+  let finishColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('finish') || h.includes('เสร็จ')) : -1;
+  let remarksColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('remarks') || h.includes('หมายเหตุ')) : -1;
+  let timestampColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('timestamp') || h.includes('เวลา')) : -1;
+
+  return dataRows
+    .map((row, index) => {
+      const rowNumber = hasHeader ? index + 2 : index + 1; // 1-based row number
+      const id = String(row[0] || '').trim();
+      // Skip completely empty rows
+      if (!id && !row[1] && !row[4] && !row[7] && !row[11]) {
+        return null;
+      }
+
+      const jobId = id || `ECR-${1000 + index}`;
+      const requestDate = String(row[1] || '');
+      const requestMonth = String(row[2] || '');
+      const requestTime = String(row[3] || '');
+      const requester = String(row[4] || '');
+      const sale = String(row[5] || '');
+      const saleSoNo = String(row[6] || '');
+      const customer = String(row[7] || '');
+      const project = String(row[8] || '');
+      const shipmentDate = String(row[9] || '');
+      
+      // 10 lines work details + quantities
+      const workDetailsRaw = String(row[10] || '');
+      const rawLines = workDetailsRaw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const workDetails: string[] = [];
+      const workDetailQuantities: (string | number)[] = [];
+
+      rawLines.forEach((rawLine) => {
+        // Check for quantity annotations like [จำนวน: 5 ชิ้น], (จำนวน 5 ชิ้น), [5 ชิ้น], (5 pcs)
+        let cleaned = rawLine;
+        let qty: string | number = '';
+
+        const matchQty = cleaned.match(/(?:\[จำนวน[:\s]*([^\]]+)\]|\(จำนวน[:\s]*([^\)]+)\)|\[([^\]]+)\]|\(([0-9]+(?:\s*ชิ้น|\s*pcs)?)\))/i);
+        if (matchQty) {
+          qty = (matchQty[1] || matchQty[2] || matchQty[3] || matchQty[4] || '').trim();
+          cleaned = cleaned.replace(matchQty[0], '').trim();
+        }
+
+        // Remove leading index prefix like 1. or 1)
+        cleaned = cleaned.replace(/^\d+[\.\:\)]\s*/, '').trim();
+
+        workDetails.push(cleaned);
+        workDetailQuantities.push(qty);
+      });
+
+      // Pad to 10 lines
+      while (workDetails.length < 10) {
+        workDetails.push('');
+        workDetailQuantities.push('');
+      }
+
+      const modifyDetails = String(row[11] || '');
+      const quantity = row[12] !== undefined ? row[12] : '';
+      
+      let rawUrgency = '';
+      let technician = '';
+      let engineerHandoverDate = '';
+      let estimatedReturnDate = '';
+      let inspectionDate = '';
+      let rawInspectionResult = '';
+      let rawFinish = '';
+      let remarks = '';
+      let updatedAt = '';
+
+      if (hasHeader && urgencyColIdx !== -1) {
+        rawUrgency = String(row[urgencyColIdx] || '');
+        technician = techColIdx !== -1 ? String(row[techColIdx] || '') : '';
+        engineerHandoverDate = handoverColIdx !== -1 ? String(row[handoverColIdx] || '') : '';
+        estimatedReturnDate = estReturnColIdx !== -1 ? String(row[estReturnColIdx] || '') : '';
+        inspectionDate = inspectionDateColIdx !== -1 ? String(row[inspectionDateColIdx] || '') : '';
+        rawInspectionResult = qcColIdx !== -1 ? String(row[qcColIdx] || '').toUpperCase() : '';
+        rawFinish = finishColIdx !== -1 ? String(row[finishColIdx] || '').toUpperCase() : '';
+        remarks = remarksColIdx !== -1 ? String(row[remarksColIdx] || '') : '';
+        updatedAt = timestampColIdx !== -1 ? String(row[timestampColIdx] || '') : '';
+      } else {
+        // Fallback row layout detection: 22 cols (Standard with Urgency at col 13), 21 cols, or 20 cols (legacy)
+        const col13Str = String(row[13] || '').trim();
+        const col14Str = String(row[14] || '').trim();
+        const isUrgencyWord = col13Str.includes('ด่วน') || col13Str.includes('ปกติ') || col13Str.toUpperCase().includes('URGENT') || col13Str.toUpperCase().includes('NORMAL');
+        const isDatePattern13 = /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$/.test(col13Str);
+
+        if (row.length >= 22 || isUrgencyWord) {
+          // 22 cols: 13: urgency, 14: technician, 15: handover, 16: estReturn, 17: inspectionDate, 18: qc, 19: finish, 20: remarks, 21: timestamp
+          rawUrgency = col13Str;
+          technician = col14Str;
+          engineerHandoverDate = String(row[15] || '');
+          estimatedReturnDate = String(row[16] || '');
+          inspectionDate = String(row[17] || '');
+          rawInspectionResult = String(row[18] || '').toUpperCase();
+          rawFinish = String(row[19] || '').toUpperCase();
+          remarks = String(row[20] || '');
+          updatedAt = String(row[21] || '');
+        } else if (row.length >= 21 || (!isDatePattern13 && col13Str !== '')) {
+          // 21 cols without urgency: 13: technician, 14: handover, 15: estReturn...
+          technician = col13Str;
+          engineerHandoverDate = col14Str;
+          estimatedReturnDate = String(row[15] || '');
+          inspectionDate = String(row[16] || '');
+          rawInspectionResult = String(row[17] || '').toUpperCase();
+          rawFinish = String(row[18] || '').toUpperCase();
+          remarks = String(row[19] || '');
+          updatedAt = String(row[20] || '');
+        } else {
+          // Legacy 20 cols
+          engineerHandoverDate = col13Str;
+          estimatedReturnDate = col14Str;
+          inspectionDate = String(row[15] || '');
+          rawInspectionResult = String(row[16] || '').toUpperCase();
+          rawFinish = String(row[17] || '').toUpperCase();
+          remarks = String(row[18] || '');
+          updatedAt = String(row[19] || '');
+        }
+      }
+
+      // Determine Urgency Level
+      let urgencyLevel: 'NORMAL' | 'URGENT' | 'VERY_URGENT' = 'NORMAL';
+      const upperUrgency = rawUrgency.toUpperCase();
+      if (upperUrgency.includes('VERY_URGENT') || upperUrgency.includes('ด่วนมาก') || upperUrgency.includes('HOT')) {
+        urgencyLevel = 'VERY_URGENT';
+      } else if (upperUrgency.includes('URGENT') || upperUrgency.includes('ด่วน') || upperUrgency.includes('RUSH')) {
+        urgencyLevel = 'URGENT';
+      } else {
+        urgencyLevel = 'NORMAL';
+      }
+
+      let inspectionResult: ModifyJobItem['inspectionResult'] = '';
+      if (rawInspectionResult.includes('PASS') || rawInspectionResult.includes('COMPLETE') || rawInspectionResult.includes('ผ่าน')) {
+        inspectionResult = 'COMPLETE';
+      } else if (rawInspectionResult.includes('REJECT') || rawInspectionResult.includes('EDIT') || rawInspectionResult.includes('แก้ไข') || rawInspectionResult.includes('ไม่ผ่าน')) {
+        inspectionResult = 'EDIT';
+      } else if (rawInspectionResult.includes('WAITING') || rawInspectionResult.includes('รอ')) {
+        inspectionResult = 'WAITING';
+      } else if (rawInspectionResult) {
+        inspectionResult = 'PENDING';
+      }
+
+      let finishStatus: ModifyJobItem['finishStatus'] = 'PENDING';
+      if (rawFinish.includes('FINISH') || rawFinish.includes('เสร็จ')) {
+        finishStatus = 'FINISH';
+      } else if (rawFinish.includes('IN_PROGRESS') || rawFinish.includes('กำลัง') || rawFinish.includes('PROGRESS')) {
+        finishStatus = 'IN_PROGRESS';
+      } else if (rawFinish.includes('CANCEL') || rawFinish.includes('ยกเลิก')) {
+        finishStatus = 'CANCELLED';
+      }
+
+      return {
+        rowNumber,
+        id: jobId,
+        requestDate,
+        requestMonth,
+        requestTime,
+        requester,
+        sale,
+        saleSoNo,
+        customer,
+        project,
+        shipmentDate,
+        workDetails,
+        workDetailQuantities,
+        workDetailsRaw,
+        modifyDetails,
+        quantity,
+        urgencyLevel,
+        technician,
+        engineerHandoverDate,
+        estimatedReturnDate,
+        inspectionDate,
+        inspectionResult,
+        finishStatus,
+        remarks,
+        updatedAt,
+      };
+    })
+    .filter((j): j is NonNullable<typeof j> => j !== null);
+};
+
+/**
+ * Fetch modify records from public or shared Google Sheet via gviz endpoint
+ */
+export const fetchModifyJobsFromPublicSheet = async (
+  spreadsheetId: string,
+  sheetTitle = DEFAULT_SHEET_NAME
+): Promise<ModifyJobItem[]> => {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetTitle)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`GViz query failed with status ${response.status}`);
+    }
+    const text = await response.text();
+    const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?/);
+    if (!match || !match[1]) {
+      throw new Error('Invalid GViz response format');
+    }
+    const data = JSON.parse(match[1]);
+    if (data.status === 'error') {
+      throw new Error(data.errors?.[0]?.message || 'Google Sheet data error');
+    }
+    const table = data.table;
+    if (!table) return [];
+
+    const headers: string[] = (table.cols || []).map((col: any) => (col?.label || '').trim());
+    const allRows: (string | number)[][] = [];
+
+    const hasColHeaders = headers.some((h) => h.length > 0);
+    if (hasColHeaders) {
+      allRows.push(headers);
+    }
+
+    (table.rows || []).forEach((r: any) => {
+      const rowVals: (string | number)[] = (r.c || []).map((cell: any) => {
+        if (!cell) return '';
+        if (cell.f !== undefined && cell.f !== null) return cell.f;
+        if (cell.v !== undefined && cell.v !== null) return cell.v;
+        return '';
+      });
+      allRows.push(rowVals);
+    });
+
+    return parseSheetRowsToJobs(allRows);
+  } catch (err) {
+    console.warn('Could not fetch from public gviz endpoint:', err);
+    return [];
+  }
+};
+
+/**
  * Fetch all modify records from Google Sheet
  */
 export const fetchModifyJobsFromSheet = async (
@@ -338,7 +595,10 @@ export const fetchModifyJobsFromSheet = async (
   sheetTitle = DEFAULT_SHEET_NAME
 ): Promise<ModifyJobItem[]> => {
   const token = await getAccessToken();
-  if (!token) throw new Error('No access token available. Please sign in.');
+  if (!token) {
+    // If token not available, fallback to public gviz fetch
+    return fetchModifyJobsFromPublicSheet(spreadsheetId, sheetTitle);
+  }
 
   // Fetch sheet metadata to ensure sheet exists
   const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
@@ -346,6 +606,9 @@ export const fetchModifyJobsFromSheet = async (
   });
 
   if (!metaRes.ok) {
+    // Fallback to public gviz fetch if sheet is view-shared
+    const publicJobs = await fetchModifyJobsFromPublicSheet(spreadsheetId, sheetTitle);
+    if (publicJobs.length > 0) return publicJobs;
     throw new Error('Cannot access spreadsheet. Please check permission or link.');
   }
 
@@ -365,6 +628,9 @@ export const fetchModifyJobsFromSheet = async (
   );
 
   if (!response.ok) {
+    // Try gviz fallback
+    const publicJobs = await fetchModifyJobsFromPublicSheet(spreadsheetId, actualSheetTitle);
+    if (publicJobs.length > 0) return publicJobs;
     const err = await response.json().catch(() => ({}));
     throw new Error(err?.error?.message || `Failed to read sheet data: ${response.statusText}`);
   }
@@ -372,199 +638,7 @@ export const fetchModifyJobsFromSheet = async (
   const data = await response.json();
   const allRows: (string | number)[][] = data.values || [];
 
-  if (allRows.length === 0) return [];
-
-  // Check if first row is header row
-  let hasHeader = false;
-  let headerRow: string[] = [];
-  const firstColStr = String(allRows[0]?.[0] || '').toLowerCase();
-  if (firstColStr.includes('job') || firstColStr.includes('id') || firstColStr.includes('ลำดับ')) {
-    hasHeader = true;
-    headerRow = allRows[0].map((c) => String(c || '').toLowerCase().trim());
-  }
-
-  const dataRows = hasHeader ? allRows.slice(1) : allRows;
-
-  // Header column index map (if headers present)
-  let urgencyColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('เร่งด่วน') || h.includes('urgency') || h.includes('ความด่วน') || (h.includes('ด่วน') && !h.includes('ส่งมอบ'))) : -1;
-  let techColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ช่าง') || h.includes('technician')) : -1;
-  let handoverColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ชื่อผู้รับผิดชอบ') || h.includes('ผู้รับผิดชอบ') || (h.includes('ส่งมอบ') && (h.includes('engineer') || h.includes('ชิ้นงาน')))) : -1;
-  let estReturnColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ประมาณการ')) : -1;
-  let inspectionDateColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('ตรวจสอบวันที่')) : -1;
-  let qcColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('pass') || h.includes('ผลการตรวจ')) : -1;
-  let finishColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('finish') || h.includes('เสร็จ')) : -1;
-  let remarksColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('remarks') || h.includes('หมายเหตุ')) : -1;
-  let timestampColIdx = hasHeader ? headerRow.findIndex((h) => h.includes('timestamp') || h.includes('เวลา')) : -1;
-
-  return dataRows.map((row, index) => {
-    const rowNumber = hasHeader ? index + 2 : index + 1; // 1-based row number
-    const id = String(row[0] || `ECR-${1000 + index}`);
-    const requestDate = String(row[1] || '');
-    const requestMonth = String(row[2] || '');
-    const requestTime = String(row[3] || '');
-    const requester = String(row[4] || '');
-    const sale = String(row[5] || '');
-    const saleSoNo = String(row[6] || '');
-    const customer = String(row[7] || '');
-    const project = String(row[8] || '');
-    const shipmentDate = String(row[9] || '');
-    
-    // 10 lines work details + quantities
-    const workDetailsRaw = String(row[10] || '');
-    const rawLines = workDetailsRaw
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const workDetails: string[] = [];
-    const workDetailQuantities: (string | number)[] = [];
-
-    rawLines.forEach((rawLine) => {
-      // Check for quantity annotations like [จำนวน: 5 ชิ้น], (จำนวน 5 ชิ้น), [5 ชิ้น], (5 pcs)
-      let cleaned = rawLine;
-      let qty: string | number = '';
-
-      const matchQty = cleaned.match(/(?:\[จำนวน[:\s]*([^\]]+)\]|\(จำนวน[:\s]*([^\)]+)\)|\[([^\]]+)\]|\(([0-9]+(?:\s*ชิ้น|\s*pcs)?)\))/i);
-      if (matchQty) {
-        qty = (matchQty[1] || matchQty[2] || matchQty[3] || matchQty[4] || '').trim();
-        cleaned = cleaned.replace(matchQty[0], '').trim();
-      }
-
-      // Remove leading index prefix like 1. or 1)
-      cleaned = cleaned.replace(/^\d+[\.\:\)]\s*/, '').trim();
-
-      workDetails.push(cleaned);
-      workDetailQuantities.push(qty);
-    });
-
-    // Pad to 10 lines
-    while (workDetails.length < 10) {
-      workDetails.push('');
-      workDetailQuantities.push('');
-    }
-
-    const modifyDetails = String(row[11] || '');
-    const quantity = row[12] !== undefined ? row[12] : '';
-    
-    let rawUrgency = '';
-    let technician = '';
-    let engineerHandoverDate = '';
-    let estimatedReturnDate = '';
-    let inspectionDate = '';
-    let rawInspectionResult = '';
-    let rawFinish = '';
-    let remarks = '';
-    let updatedAt = '';
-
-    if (hasHeader && urgencyColIdx !== -1) {
-      rawUrgency = String(row[urgencyColIdx] || '');
-      technician = techColIdx !== -1 ? String(row[techColIdx] || '') : '';
-      engineerHandoverDate = handoverColIdx !== -1 ? String(row[handoverColIdx] || '') : '';
-      estimatedReturnDate = estReturnColIdx !== -1 ? String(row[estReturnColIdx] || '') : '';
-      inspectionDate = inspectionDateColIdx !== -1 ? String(row[inspectionDateColIdx] || '') : '';
-      rawInspectionResult = qcColIdx !== -1 ? String(row[qcColIdx] || '').toUpperCase() : '';
-      rawFinish = finishColIdx !== -1 ? String(row[finishColIdx] || '').toUpperCase() : '';
-      remarks = remarksColIdx !== -1 ? String(row[remarksColIdx] || '') : '';
-      updatedAt = timestampColIdx !== -1 ? String(row[timestampColIdx] || '') : '';
-    } else {
-      // Fallback row layout detection: 22 cols (Standard with Urgency at col 13), 21 cols, or 20 cols (legacy)
-      const col13Str = String(row[13] || '').trim();
-      const col14Str = String(row[14] || '').trim();
-      const isUrgencyWord = col13Str.includes('ด่วน') || col13Str.includes('ปกติ') || col13Str.toUpperCase().includes('URGENT') || col13Str.toUpperCase().includes('NORMAL');
-      const isDatePattern13 = /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$/.test(col13Str);
-
-      if (row.length >= 22 || isUrgencyWord) {
-        // 22 cols: 13: urgency, 14: technician, 15: handover, 16: estReturn, 17: inspectionDate, 18: qc, 19: finish, 20: remarks, 21: timestamp
-        rawUrgency = col13Str;
-        technician = col14Str;
-        engineerHandoverDate = String(row[15] || '');
-        estimatedReturnDate = String(row[16] || '');
-        inspectionDate = String(row[17] || '');
-        rawInspectionResult = String(row[18] || '').toUpperCase();
-        rawFinish = String(row[19] || '').toUpperCase();
-        remarks = String(row[20] || '');
-        updatedAt = String(row[21] || '');
-      } else if (row.length >= 21 || (!isDatePattern13 && col13Str !== '')) {
-        // 21 cols without urgency: 13: technician, 14: handover, 15: estReturn...
-        technician = col13Str;
-        engineerHandoverDate = col14Str;
-        estimatedReturnDate = String(row[15] || '');
-        inspectionDate = String(row[16] || '');
-        rawInspectionResult = String(row[17] || '').toUpperCase();
-        rawFinish = String(row[18] || '').toUpperCase();
-        remarks = String(row[19] || '');
-        updatedAt = String(row[20] || '');
-      } else {
-        // Legacy 20 cols
-        engineerHandoverDate = col13Str;
-        estimatedReturnDate = col14Str;
-        inspectionDate = String(row[15] || '');
-        rawInspectionResult = String(row[16] || '').toUpperCase();
-        rawFinish = String(row[17] || '').toUpperCase();
-        remarks = String(row[18] || '');
-        updatedAt = String(row[19] || '');
-      }
-    }
-
-    // Determine Urgency Level
-    let urgencyLevel: 'NORMAL' | 'URGENT' | 'VERY_URGENT' = 'NORMAL';
-    const upperUrgency = rawUrgency.toUpperCase();
-    if (upperUrgency.includes('VERY_URGENT') || upperUrgency.includes('ด่วนมาก') || upperUrgency.includes('HOT')) {
-      urgencyLevel = 'VERY_URGENT';
-    } else if (upperUrgency.includes('URGENT') || upperUrgency.includes('ด่วน') || upperUrgency.includes('RUSH')) {
-      urgencyLevel = 'URGENT';
-    } else {
-      urgencyLevel = 'NORMAL';
-    }
-
-    let inspectionResult: ModifyJobItem['inspectionResult'] = '';
-    if (rawInspectionResult.includes('PASS') || rawInspectionResult.includes('COMPLETE') || rawInspectionResult.includes('ผ่าน')) {
-      inspectionResult = 'COMPLETE';
-    } else if (rawInspectionResult.includes('REJECT') || rawInspectionResult.includes('EDIT') || rawInspectionResult.includes('แก้ไข') || rawInspectionResult.includes('ไม่ผ่าน')) {
-      inspectionResult = 'EDIT';
-    } else if (rawInspectionResult.includes('WAITING') || rawInspectionResult.includes('รอ')) {
-      inspectionResult = 'WAITING';
-    } else if (rawInspectionResult) {
-      inspectionResult = 'PENDING';
-    }
-
-    let finishStatus: ModifyJobItem['finishStatus'] = 'PENDING';
-    if (rawFinish.includes('FINISH') || rawFinish.includes('เสร็จ')) {
-      finishStatus = 'FINISH';
-    } else if (rawFinish.includes('IN_PROGRESS') || rawFinish.includes('กำลัง') || rawFinish.includes('PROGRESS')) {
-      finishStatus = 'IN_PROGRESS';
-    } else if (rawFinish.includes('CANCEL') || rawFinish.includes('ยกเลิก')) {
-      finishStatus = 'CANCELLED';
-    }
-
-    return {
-      rowNumber,
-      id,
-      requestDate,
-      requestMonth,
-      requestTime,
-      requester,
-      sale,
-      saleSoNo,
-      customer,
-      project,
-      shipmentDate,
-      workDetails,
-      workDetailQuantities,
-      workDetailsRaw,
-      modifyDetails,
-      quantity,
-      urgencyLevel,
-      technician,
-      engineerHandoverDate,
-      estimatedReturnDate,
-      inspectionDate,
-      inspectionResult,
-      finishStatus,
-      remarks,
-      updatedAt,
-    };
-  });
+  return parseSheetRowsToJobs(allRows);
 };
 
 /**

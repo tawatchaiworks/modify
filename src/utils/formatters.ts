@@ -24,6 +24,236 @@ export const URGENCY_OPTIONS: { value: JobUrgencyLevel; label: string; desc: str
   },
 ];
 
+export type JobWorkflowStep = 'PENDING' | 'IN_PROGRESS' | 'WAIT_QC' | 'FINISH' | 'CANCELLED';
+
+export interface JobWorkflowDisplay {
+  code: JobWorkflowStep;
+  label: string; // 'รอดำเนินการ' | 'กำลังดำเนินการ' | 'รอ QC ตรวจสอบ' | 'เสร็จสิ้น (Finish)' | 'ยกเลิก'
+  shortLabel: string; // 'รอดำเนินการ' | 'ดำเนินการ' | 'รอ QC' | 'Finish'
+  color: 'amber' | 'blue' | 'purple' | 'emerald' | 'rose';
+  badgeClass: string;
+  dotColor: string;
+  icon: string;
+  stepNumber: number; // 1, 2, 3, 4
+  description: string;
+}
+
+export const getJobWorkflowStatus = (job: Partial<ModifyJobItem>): JobWorkflowDisplay => {
+  if (job.finishStatus === 'CANCELLED') {
+    return {
+      code: 'CANCELLED',
+      label: 'ยกเลิกคำขอ',
+      shortLabel: 'ยกเลิก',
+      color: 'rose',
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+      dotColor: 'bg-rose-500',
+      icon: '🚫',
+      stepNumber: 0,
+      description: 'งานนี้ถูกยกเลิกแล้ว',
+    };
+  }
+
+  // 4. Finish (เสร็จสมบูรณ์ - ผ่าน QC แล้ว)
+  if (
+    job.inspectionResult === 'COMPLETE' ||
+    job.inspectionResult === 'PASS'
+  ) {
+    return {
+      code: 'FINISH',
+      label: 'เสร็จสิ้น (Finish / ผ่าน QC)',
+      shortLabel: 'Finish',
+      color: 'emerald',
+      badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-extrabold shadow-2xs',
+      dotColor: 'bg-emerald-500',
+      icon: '✅',
+      stepNumber: 4,
+      description: job.inspectionDate ? `ตรวจสอบผ่านเมื่อ ${formatDateDisplay(job.inspectionDate)}` : 'ผ่านการตรวจสอบคุณภาพและเสร็จสมบูรณ์เรียบร้อย',
+    };
+  }
+
+  // 3. รอ QC (Wait QC / รอตรวจ) - เฉพาะเมื่องานเสร็จ (Finish Status = FINISH) หรือถูกส่งกลับแก้ไข (EDIT)
+  if (
+    (job.finishStatus === 'FINISH') ||
+    job.inspectionResult === 'EDIT' ||
+    job.inspectionResult === 'REJECT'
+  ) {
+    if (job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT') {
+      return {
+        code: 'WAIT_QC',
+        label: 'รอ QC (ส่งกลับแก้ไข/รอตรวจซ้ำ)',
+        shortLabel: 'รอ QC (แก้ไข)',
+        color: 'rose',
+        badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 font-extrabold',
+        dotColor: 'bg-rose-500',
+        icon: '⚠️',
+        stepNumber: 3,
+        description: 'QC ส่งกลับแก้ไข อยู่ระหว่างปรับปรุงและรอตรวจซ้ำ',
+      };
+    }
+    return {
+      code: 'WAIT_QC',
+      label: 'รอ QC ตรวจสอบ (WAITING QC)',
+      shortLabel: 'รอ QC',
+      color: 'purple',
+      badgeClass: 'bg-purple-100 text-purple-900 border-purple-300 font-extrabold shadow-2xs',
+      dotColor: 'bg-purple-500',
+      icon: '🔍',
+      stepNumber: 3,
+      description: 'ช่างทำเสร็จแล้ว (FINISH) อยู่ในสถานะรอเจ้าหน้าที่ QC เข้าตรวจสอบคุณภาพ',
+    };
+  }
+
+  // 2. ดำเนินการ (In Progress)
+  if (
+    job.finishStatus === 'IN_PROGRESS' ||
+    Boolean(job.engineerHandoverDate) ||
+    Boolean(job.technician)
+  ) {
+    return {
+      code: 'IN_PROGRESS',
+      label: 'กำลังดำเนินการ (In Progress)',
+      shortLabel: 'ดำเนินการ',
+      color: 'blue',
+      badgeClass: 'bg-blue-100 text-blue-900 border-blue-300 font-extrabold shadow-2xs',
+      dotColor: 'bg-blue-500',
+      icon: '⚙️',
+      stepNumber: 2,
+      description: job.technician ? `ช่างผู้ทำ: ${job.technician}` : 'ส่งมอบให้วิศวกร/ช่างกำลังดำเนินการ',
+    };
+  }
+
+  // 1. รอดำเนินการ (Pending)
+  return {
+    code: 'PENDING',
+    label: 'รอดำเนินการ (Pending)',
+    shortLabel: 'รอดำเนินการ',
+    color: 'amber',
+    badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold shadow-2xs',
+    dotColor: 'bg-amber-500',
+    icon: '⏳',
+    stepNumber: 1,
+    description: 'เปิดคำขอแล้ว รอส่งมอบชิ้นงานให้ Engineer / ช่าง',
+  };
+};
+
+export interface FinishStatusDisplay {
+  code: 'FINISH' | 'IN_PROGRESS' | 'PENDING' | 'CANCELLED';
+  label: string;
+  shortLabel: string;
+  thaiLabel: string;
+  badgeClass: string;
+  dotColor: string;
+  icon: string;
+}
+
+export const getFinishStatusDisplay = (finishStatus?: string): FinishStatusDisplay => {
+  const s = String(finishStatus || '').trim().toUpperCase();
+  if (s === 'FINISH' || s === 'COMPLETED' || s === 'เสร็จ' || s === 'เสร็จสิ้น' || s === 'DONE') {
+    return {
+      code: 'FINISH',
+      label: 'FINISH (เสร็จสมบูรณ์)',
+      shortLabel: 'FINISH',
+      thaiLabel: 'เสร็จสมบูรณ์',
+      badgeClass: 'bg-emerald-600 text-white border-emerald-700 font-extrabold shadow-2xs',
+      dotColor: 'bg-emerald-500',
+      icon: '✅',
+    };
+  }
+  if (s === 'CANCELLED' || s === 'CANCELED' || s === 'ยกเลิก') {
+    return {
+      code: 'CANCELLED',
+      label: 'CANCELLED (ยกเลิก)',
+      shortLabel: 'CANCELLED',
+      thaiLabel: 'ยกเลิก',
+      badgeClass: 'bg-rose-600 text-white border-rose-700 font-bold',
+      dotColor: 'bg-rose-500',
+      icon: '🚫',
+    };
+  }
+  if (s === 'IN_PROGRESS' || s === 'IN PROGRESS' || s === 'กำลังทำ' || s === 'ดำเนินการ') {
+    return {
+      code: 'IN_PROGRESS',
+      label: 'IN PROGRESS (กำลังดำเนินการ)',
+      shortLabel: 'IN PROGRESS',
+      thaiLabel: 'กำลังดำเนินการ',
+      badgeClass: 'bg-blue-600 text-white border-blue-700 font-extrabold shadow-2xs',
+      dotColor: 'bg-blue-500',
+      icon: '⚙️',
+    };
+  }
+  return {
+    code: 'PENDING',
+    label: 'PENDING (รอดำเนินการ)',
+    shortLabel: 'PENDING',
+    thaiLabel: 'รอดำเนินการ',
+    badgeClass: 'bg-amber-500 text-white border-amber-600 font-extrabold shadow-2xs',
+    dotColor: 'bg-amber-500',
+    icon: '⏳',
+  };
+};
+
+export interface InspectionResultDisplay {
+  code: 'COMPLETE' | 'EDIT' | 'WAITING' | 'NONE';
+  label: string;
+  shortLabel: string;
+  badgeClass: string;
+  icon: string;
+  isWaiting: boolean;
+}
+
+export const getInspectionResultDisplay = (
+  inspectionResult?: string,
+  finishStatus?: string
+): InspectionResultDisplay => {
+  const ir = String(inspectionResult || '').trim().toUpperCase();
+  const fs = String(finishStatus || '').trim().toUpperCase();
+  const isFinished = fs === 'FINISH' || fs === 'COMPLETED' || fs === 'เสร็จ';
+
+  if (ir === 'COMPLETE' || ir === 'PASS' || ir === 'ผ่าน') {
+    return {
+      code: 'COMPLETE',
+      label: 'COMPLETE (ตรวจผ่าน QC)',
+      shortLabel: 'COMPLETE',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold',
+      icon: '✅',
+      isWaiting: false,
+    };
+  }
+
+  if (ir === 'EDIT' || ir === 'REJECT' || ir === 'แก้ไข' || ir === 'ไม่ผ่าน') {
+    return {
+      code: 'EDIT',
+      label: 'EDIT (ส่งกลับแก้ไข)',
+      shortLabel: 'EDIT',
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold',
+      icon: '⚠️',
+      isWaiting: false,
+    };
+  }
+
+  // WAITING will ONLY display when Finish Status is FINISH
+  if (isFinished) {
+    return {
+      code: 'WAITING',
+      label: 'WAITING (รอตรวจ QC)',
+      shortLabel: 'WAITING',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold shadow-2xs',
+      icon: '⏳',
+      isWaiting: true,
+    };
+  }
+
+  // When finishStatus is NOT finish, inspection result is not in waiting state
+  return {
+    code: 'NONE',
+    label: '- ยังไม่พร้อมตรวจ -',
+    shortLabel: '-',
+    badgeClass: 'bg-slate-100 text-slate-400 border-slate-200 font-medium',
+    icon: '⏳',
+    isWaiting: false,
+  };
+};
+
 export const parseUrgencyLevel = (input?: string): JobUrgencyLevel => {
   if (!input) return 'NORMAL';
   const str = String(input).trim().toUpperCase();
@@ -167,7 +397,213 @@ export const normalizeToISODate = (dateStr?: string): string => {
   return '';
 };
 
-// Extract all scheduled milestone events from jobs
+// Calculate difference in whole days between two date strings (d2 - d1)
+export const getDaysDifference = (startDateStr?: string, endDateStr?: string): number => {
+  if (!startDateStr || !endDateStr) return 0;
+  const iso1 = normalizeToISODate(startDateStr);
+  const iso2 = normalizeToISODate(endDateStr);
+  if (!iso1 || !iso2) return 0;
+  const d1 = new Date(`${iso1}T00:00:00`);
+  const d2 = new Date(`${iso2}T00:00:00`);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+  const diffTime = d2.getTime() - d1.getTime();
+  return Math.round(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Check if a given date is a weekend (Saturday or Sunday)
+export const isWeekend = (dateOrStr?: string | Date): boolean => {
+  if (!dateOrStr) return false;
+  if (dateOrStr instanceof Date) {
+    const day = dateOrStr.getDay();
+    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+  }
+  const iso = normalizeToISODate(dateOrStr);
+  if (!iso) return false;
+  const [y, m, d] = iso.split('-').map((v) => parseInt(v, 10));
+  const date = new Date(y, m - 1, d);
+  if (isNaN(date.getTime())) return false;
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+// Generate list of Working Day ISO dates (skipping Saturdays & Sundays by default)
+export const getWorkingDaysRangeISOList = (
+  startDateStr: string,
+  endDateStr: string,
+  includeSaturday = false,
+  maxDays = 90
+): string[] => {
+  const startISO = normalizeToISODate(startDateStr);
+  const endISO = normalizeToISODate(endDateStr);
+  if (!startISO && !endISO) return [];
+  if (!startISO) return isWeekend(endISO) && !includeSaturday ? [] : [endISO];
+  if (!endISO) return isWeekend(startISO) && !includeSaturday ? [] : [startISO];
+
+  const [sy, sm, sd] = startISO.split('-').map((v) => parseInt(v, 10));
+  const [ey, em, ed] = endISO.split('-').map((v) => parseInt(v, 10));
+  const dStart = new Date(sy, sm - 1, sd);
+  const dEnd = new Date(ey, em - 1, ed);
+  if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime())) return [];
+  if (dStart > dEnd) return [];
+
+  const dates: string[] = [];
+  const curr = new Date(dStart);
+  let count = 0;
+  while (curr <= dEnd && count < maxDays) {
+    const day = curr.getDay();
+    const isWeekendDay = includeSaturday ? day === 0 : day === 0 || day === 6;
+    if (!isWeekendDay) {
+      const y = curr.getFullYear();
+      const m = String(curr.getMonth() + 1).padStart(2, '0');
+      const d = String(curr.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+    }
+    curr.setDate(curr.getDate() + 1);
+    count++;
+  }
+  return dates;
+};
+
+// Generate list of ISO dates (YYYY-MM-DD) between start and end date (inclusive)
+export const getDateRangeISOList = (startDateStr: string, endDateStr: string, maxDays = 90): string[] => {
+  const startISO = normalizeToISODate(startDateStr);
+  const endISO = normalizeToISODate(endDateStr);
+  if (!startISO && !endISO) return [];
+  if (!startISO) return [endISO];
+  if (!endISO) return [startISO];
+
+  const dStart = new Date(`${startISO}T00:00:00`);
+  const dEnd = new Date(`${endISO}T00:00:00`);
+  if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime())) return [startISO];
+
+  // If start is after end, return start
+  if (dStart > dEnd) return [startISO];
+
+  const dates: string[] = [];
+  const curr = new Date(dStart);
+  let count = 0;
+  while (curr <= dEnd && count < maxDays) {
+    const y = curr.getFullYear();
+    const m = String(curr.getMonth() + 1).padStart(2, '0');
+    const d = String(curr.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    curr.setDate(curr.getDate() + 1);
+    count++;
+  }
+  return dates;
+};
+
+export interface JobWorkPlanDetails {
+  startDate: string; // ISO date (handover date or request date)
+  plannedEndDate: string; // ISO date (estimated return date)
+  actualFinishDate: string; // ISO date (inspection date, finish date, or today if finished)
+  effectiveEndDate: string; // actualFinishDate if finished, else plannedEndDate
+  isFinished: boolean;
+  plannedDays: number; // total planned working days (excluding Sat & Sun)
+  actualDays: number; // actual working days used (excluding Sat & Sun)
+  effectiveDays: number; // actualDays if finished, else plannedDays
+  daysElapsed: number; // working days elapsed from startDate to today (excluding Sat & Sun)
+  daysRemaining: number; // working days remaining to plannedEndDate (excluding Sat & Sun)
+  diffDays: number; // actualDays - plannedDays
+  diffStatus: 'ON_TIME' | 'FASTER' | 'OVERDUE' | 'IN_PLAN' | 'EXCEEDED';
+  diffLabel: string; // e.g. "ตรงตามแผนพอดี", "เร็วกว่าแผน 1 วันทำการ", "เกินแผน 2 วันทำการ"
+  spanDates: string[]; // array of Working Day ISO dates from startDate to effectiveEndDate (Excludes Sat & Sun)
+  spanType: 'ACTUAL_WORK' | 'PLANNED_WORK';
+}
+
+// Calculate work plan timeline & actual work days used for a job (Working Days: Exclude Sat & Sun)
+export const getJobWorkPlanDetails = (job: Partial<ModifyJobItem>): JobWorkPlanDetails => {
+  const startISO = normalizeToISODate(job.engineerHandoverDate) || normalizeToISODate(job.requestDate) || getCurrentDateFormatted();
+  const plannedEndISO = normalizeToISODate(job.estimatedReturnDate) || startISO;
+
+  const isFinished =
+    job.finishStatus === 'FINISH' ||
+    job.inspectionResult === 'COMPLETE' ||
+    job.inspectionResult === 'PASS';
+
+  // Actual finish date: inspectionDate, finishDate, shipmentDate, or fallback to plannedEndISO if finished
+  const actualFinishISO =
+    normalizeToISODate(job.inspectionDate) ||
+    normalizeToISODate(job.finishDate) ||
+    normalizeToISODate(job.shipmentDate) ||
+    (isFinished ? plannedEndISO : '');
+
+  const effectiveEndISO = isFinished && actualFinishISO ? actualFinishISO : plannedEndISO;
+
+  // Working days (excluding Sat & Sun)
+  const plannedDays = Math.max(1, calculateWorkingDaysElapsed(startISO, plannedEndISO, false));
+  const actualDays = isFinished && actualFinishISO
+    ? Math.max(1, calculateWorkingDaysElapsed(startISO, actualFinishISO, false))
+    : plannedDays;
+
+  const effectiveDays = isFinished ? actualDays : plannedDays;
+
+  const todayISO = getCurrentDateFormatted();
+  const daysElapsed = Math.max(1, calculateWorkingDaysElapsed(startISO, todayISO, false));
+
+  // Calculate working days remaining
+  let daysRemaining = 0;
+  if (todayISO < plannedEndISO) {
+    daysRemaining = calculateWorkingDaysElapsed(todayISO, plannedEndISO, false) - 1;
+    if (daysRemaining < 0) daysRemaining = 0;
+  } else if (todayISO > plannedEndISO) {
+    daysRemaining = -(calculateWorkingDaysElapsed(plannedEndISO, todayISO, false) - 1);
+  } else {
+    daysRemaining = 0;
+  }
+
+  const diffDays = isFinished ? actualDays - plannedDays : 0;
+
+  let diffStatus: JobWorkPlanDetails['diffStatus'] = 'ON_TIME';
+  let diffLabel = 'ตรงตามแผนพอดี';
+
+  if (isFinished) {
+    if (diffDays < 0) {
+      diffStatus = 'FASTER';
+      diffLabel = `เร็วกว่าแผน ${Math.abs(diffDays)} วันทำการ`;
+    } else if (diffDays > 0) {
+      diffStatus = 'OVERDUE';
+      diffLabel = `เกินแผน ${diffDays} วันทำการ`;
+    } else {
+      diffStatus = 'ON_TIME';
+      diffLabel = 'ตรงตามแผนพอดี';
+    }
+  } else {
+    if (daysRemaining < 0) {
+      diffStatus = 'EXCEEDED';
+      diffLabel = `เกินกำหนด ${Math.abs(daysRemaining)} วันทำการ`;
+    } else if (daysRemaining === 0) {
+      diffStatus = 'IN_PLAN';
+      diffLabel = 'ครบกำหนดวันนี้';
+    } else {
+      diffStatus = 'IN_PLAN';
+      diffLabel = `เหลืออีก ${daysRemaining} วันทำการ`;
+    }
+  }
+
+  // Generate span dates ONLY on working days (Saturday & Sunday are holidays / not worked)
+  const spanDates = getWorkingDaysRangeISOList(startISO, effectiveEndISO, false);
+
+  return {
+    startDate: startISO,
+    plannedEndDate: plannedEndISO,
+    actualFinishDate: actualFinishISO,
+    effectiveEndDate: effectiveEndISO,
+    isFinished,
+    plannedDays,
+    actualDays,
+    effectiveDays,
+    daysElapsed,
+    daysRemaining,
+    diffDays,
+    diffStatus,
+    diffLabel,
+    spanDates,
+    spanType: isFinished ? 'ACTUAL_WORK' : 'PLANNED_WORK',
+  };
+};
+
+// Extract all scheduled milestone events and work plan spans from jobs
 export const extractJobCalendarEvents = (
   jobs: ModifyJobItem[],
   milestoneFilter: CalendarMilestoneType = 'all',
@@ -176,13 +612,97 @@ export const extractJobCalendarEvents = (
   const events: CalendarEventItem[] = [];
 
   jobs.forEach((job) => {
+    // ⚡ RULE: งานสถานะ "รอดำเนินการ (PENDING)" หรือยกเลิก จะไม่ลงในแผนงานหรือปฏิทินงาน
+    // จนกว่าสถานะจะถูกเปลี่ยนเป็น "ดำเนินการ (IN_PROGRESS)" และรันงานไปจนกว่าจะเป็น "เสร็จสมบูรณ์ (FINISH)"
+    const isJobActiveInCalendar =
+      job.finishStatus === 'IN_PROGRESS' ||
+      job.finishStatus === 'FINISH' ||
+      (job.finishStatus !== 'PENDING' && job.finishStatus !== 'CANCELLED' && Boolean(job.engineerHandoverDate));
+
+    // Exclude PENDING unless explicitly requested via statusFilter === 'PENDING'
+    if (!isJobActiveInCalendar && statusFilter !== 'PENDING') {
+      return;
+    }
+
     // Status filter
     if (statusFilter !== 'ALL') {
       if (statusFilter === 'IN_PROGRESS' && job.finishStatus !== 'IN_PROGRESS') return;
       if (statusFilter === 'FINISH' && job.finishStatus !== 'FINISH') return;
+      if (statusFilter === 'PENDING' && job.finishStatus !== 'PENDING' && Boolean(job.finishStatus)) return;
       if ((statusFilter === 'COMPLETE' || statusFilter === 'PASS') && job.inspectionResult !== 'COMPLETE' && job.inspectionResult !== 'PASS') return;
       if ((statusFilter === 'EDIT' || statusFilter === 'REJECT') && job.inspectionResult !== 'EDIT' && job.inspectionResult !== 'REJECT') return;
       if (statusFilter === 'WAITING' && job.inspectionResult !== 'WAITING' && job.inspectionResult !== 'PENDING' && Boolean(job.inspectionResult)) return;
+    }
+
+    const workPlan = getJobWorkPlanDetails(job);
+
+    // 0. Work Plan Span Events (แผนการทำงาน วันที่รับงาน -> วันประมาณการ หรือ วันรับมอบสินค้า -> วัน finish)
+    if (milestoneFilter === 'all' || milestoneFilter === 'workPlan') {
+      const totalSpanDays = workPlan.spanDates.length;
+      workPlan.spanDates.forEach((dateISO, index) => {
+        const dayNum = index + 1;
+        const isFinishedSpan = workPlan.isFinished;
+
+        if (isFinishedSpan) {
+          events.push({
+            id: `${job.id}-actualwork-${dateISO}`,
+            jobId: job.id,
+            job,
+            date: dateISO,
+            title: `✅ ทำงานจริง (วันที่ ${dayNum}/${totalSpanDays} วันทำการ): ${job.customer} [ใช้จริง ${workPlan.actualDays} วันทำการ]`,
+            type: 'workPlan',
+            typeLabel: `ทำงานจริง (${dayNum}/${totalSpanDays} วันทำการ)`,
+            customer: job.customer,
+            saleSoNo: job.saleSoNo,
+            status: job.finishStatus,
+            qcResult: job.inspectionResult,
+            dayIndex: dayNum,
+            totalDays: totalSpanDays,
+            isPlanSpan: false,
+            isFinishedSpan: true,
+            actualDaysUsed: workPlan.actualDays,
+            plannedDaysCount: workPlan.plannedDays,
+            diffDays: workPlan.diffDays,
+            diffLabel: workPlan.diffLabel,
+            colorClass: {
+              bg: 'bg-emerald-50 hover:bg-emerald-100/90 text-emerald-950',
+              text: 'text-emerald-800',
+              border: 'border-emerald-300',
+              badge: 'bg-emerald-600 text-white',
+              dot: 'bg-emerald-500',
+            },
+          });
+        } else {
+          events.push({
+            id: `${job.id}-planwork-${dateISO}`,
+            jobId: job.id,
+            job,
+            date: dateISO,
+            title: `🛠️ แผนงาน (วันที่ ${dayNum}/${totalSpanDays} วันทำการ): ${job.customer} [ประมาณการ ${workPlan.plannedDays} วันทำการ]`,
+            type: 'workPlan',
+            typeLabel: `แผนงาน (${dayNum}/${totalSpanDays} วันทำการ)`,
+            customer: job.customer,
+            saleSoNo: job.saleSoNo,
+            status: job.finishStatus,
+            qcResult: job.inspectionResult,
+            dayIndex: dayNum,
+            totalDays: totalSpanDays,
+            isPlanSpan: true,
+            isFinishedSpan: false,
+            actualDaysUsed: workPlan.actualDays,
+            plannedDaysCount: workPlan.plannedDays,
+            diffDays: workPlan.diffDays,
+            diffLabel: workPlan.diffLabel,
+            colorClass: {
+              bg: 'bg-blue-50/90 hover:bg-blue-100/90 text-blue-950',
+              text: 'text-blue-800',
+              border: 'border-blue-300',
+              badge: 'bg-blue-600 text-white',
+              dot: 'bg-blue-500',
+            },
+          });
+        }
+      });
     }
 
     // 1. Request Date

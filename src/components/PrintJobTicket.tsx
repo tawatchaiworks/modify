@@ -381,7 +381,7 @@ export const PrintJobTicket: React.FC<PrintJobTicketProps> = ({
               </div>
 
               <div className="space-y-0.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase block">11. ชื่อผู้รับผิดชอบ / ส่งมอบงาน:</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">11. วันที่ช่างรับสินค้า:</span>
                 <span className="font-bold text-slate-900 text-sm block">
                   {formatDateDisplay(job.engineerHandoverDate)}
                 </span>

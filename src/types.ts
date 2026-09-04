@@ -50,6 +50,7 @@ export type CalendarViewType = 'day' | 'week' | 'month';
 
 export type CalendarMilestoneType =
   | 'all'
+  | 'workPlan'
   | 'request'
   | 'handover'
   | 'estimatedReturn'
@@ -63,12 +64,20 @@ export interface CalendarEventItem {
   date: string; // YYYY-MM-DD
   time?: string;
   title: string;
-  type: 'request' | 'handover' | 'estimatedReturn' | 'inspection' | 'shipment';
+  type: 'workPlan' | 'request' | 'handover' | 'estimatedReturn' | 'inspection' | 'shipment';
   typeLabel: string;
   customer: string;
   saleSoNo?: string;
   status: 'FINISH' | 'IN_PROGRESS' | 'PENDING' | 'CANCELLED';
   qcResult?: InspectionResult | string;
+  dayIndex?: number; // 1-indexed day of the span
+  totalDays?: number; // total days in the span
+  isPlanSpan?: boolean;
+  isFinishedSpan?: boolean;
+  actualDaysUsed?: number;
+  plannedDaysCount?: number;
+  diffDays?: number;
+  diffLabel?: string;
   colorClass: {
     bg: string;
     text: string;

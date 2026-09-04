@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Calendar,
   Clock,
@@ -14,8 +14,13 @@ import {
   Trash2,
   Layers,
   ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   Palette,
   Play,
+  Search,
+  X,
+  Sparkles,
 } from 'lucide-react';
 import { ModifyJobItem } from '../types';
 import {
@@ -25,11 +30,13 @@ import {
   getUrgencyDisplay,
   getWorkTypeDisplay,
 } from '../utils/formatters';
+import { SearchStatusPopup } from './SearchStatusPopup';
 
 interface ModifyJobCardViewProps {
   jobs: ModifyJobItem[];
   onEdit: (job: ModifyJobItem) => void;
   onQuickStatus: (job: ModifyJobItem) => void;
+  onUpdateStatus?: (job: ModifyJobItem, newStatus: string) => Promise<void> | void;
   onStartWork?: (job: ModifyJobItem) => void;
   onViewTicket: (job: ModifyJobItem) => void;
   onDelete: (job: ModifyJobItem) => void;
@@ -40,11 +47,66 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
   jobs,
   onEdit,
   onQuickStatus,
+  onUpdateStatus,
   onStartWork,
   onViewTicket,
   onDelete,
   onAddNew,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(15);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const popupMatchedJobs = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const query = searchTerm.trim().toLowerCase();
+    return jobs.filter((job) => {
+      const soMatch = job.saleSoNo && String(job.saleSoNo).toLowerCase().includes(query);
+      const projectMatch = job.project && String(job.project).toLowerCase().includes(query);
+      const customerMatch = job.customer && String(job.customer).toLowerCase().includes(query);
+      const idMatch = job.id && String(job.id).toLowerCase().includes(query);
+      const requesterMatch = job.requester && String(job.requester).toLowerCase().includes(query);
+      const modifyMatch = job.modifyDetails && String(job.modifyDetails).toLowerCase().includes(query);
+      return soMatch || projectMatch || customerMatch || idMatch || requesterMatch || modifyMatch;
+    });
+  }, [jobs, searchTerm]);
+
+  const filteredJobs = useMemo(() => {
+    const list = jobs.filter((job) => {
+      if (!searchTerm.trim()) return true;
+      const query = searchTerm.trim().toLowerCase();
+      return (
+        (job.id && String(job.id).toLowerCase().includes(query)) ||
+        (job.customer && String(job.customer).toLowerCase().includes(query)) ||
+        (job.saleSoNo && String(job.saleSoNo).toLowerCase().includes(query)) ||
+        (job.project && String(job.project).toLowerCase().includes(query)) ||
+        (job.requester && String(job.requester).toLowerCase().includes(query)) ||
+        (job.modifyDetails && String(job.modifyDetails).toLowerCase().includes(query))
+      );
+    });
+
+    // Sort latest first (by id or rowNumber descending)
+    return list.sort((a, b) => {
+      const valA = a.id || '';
+      const valB = b.id || '';
+      return valA < valB ? 1 : -1;
+    });
+  }, [jobs, searchTerm]);
+
+  // Reset to page 1 if filters or search changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / (pageSize || 15)));
+  const effectivePage = Math.min(currentPage, totalPages);
+  const paginatedJobs = useMemo(() => {
+    if (pageSize === 0) return filteredJobs; // 0 means show all
+    const start = (effectivePage - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, effectivePage, pageSize]);
+
   if (jobs.length === 0) {
     return (
       <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 shadow-xs">
@@ -60,8 +122,102 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {jobs.map((job) => {
+    <div className="space-y-4">
+      {/* Search Header for Cards */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+          <input
+            type="text"
+            value={searchTerm}
+            onFocus={() => {
+              if (searchTerm.trim()) setIsSearchPopupOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setIsSearchPopupOpen(true);
+              }
+            }}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setIsSearchPopupOpen(Boolean(e.target.value.trim()));
+            }}
+            placeholder="ค้นหา SO No., ชื่อโครงการ, ลูกค้า (เช่น SO-2026, New Line)..."
+            className="w-full pl-9 pr-28 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-hidden font-medium"
+          />
+
+          <div className="absolute right-2.5 top-2 flex items-center gap-1.5">
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsSearchPopupOpen(false);
+                }}
+                title="ล้างคำค้นหา"
+                className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsSearchPopupOpen(true)}
+              title="เปิดหน้าต่างค้นหาและสถานะงานขนาดเต็มจอ"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors flex items-center gap-1 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-2xs"
+            >
+              <Search className="w-3 h-3 text-white" />
+              <span>ค้นหาสถานะ</span>
+            </button>
+          </div>
+
+          {/* Live Full-Page Search Status Screen */}
+          <SearchStatusPopup
+            searchTerm={searchTerm}
+            matchedJobs={popupMatchedJobs}
+            allJobs={jobs}
+            isOpen={isSearchPopupOpen}
+            onClose={() => setIsSearchPopupOpen(false)}
+            onSearchChange={(term) => setSearchTerm(term)}
+            onSelectJob={(job) => {
+              setSearchTerm(job.saleSoNo || job.project || job.id);
+              setIsSearchPopupOpen(false);
+            }}
+            onQuickStatus={onQuickStatus}
+            onViewTicket={onViewTicket}
+            onEditJob={onEdit}
+            onAddNew={onAddNew}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 bg-blue-50/70 border border-blue-200 rounded-xl px-3 py-1.5">
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-xs text-blue-950 font-bold">แสดง:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="text-xs bg-transparent font-bold text-blue-900 outline-hidden cursor-pointer"
+            >
+              <option value={15}>15 ลำดับล่าสุด</option>
+              <option value={30}>30 ลำดับ</option>
+              <option value={50}>50 ลำดับ</option>
+              <option value={0}>ทั้งหมด ({filteredJobs.length})</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={onAddNew}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>+ สร้างคำขอ Modify</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        {paginatedJobs.map((job) => {
         const completedLines = (job.workDetails || []).filter((l) => l && l.trim()).length;
 
         return (
@@ -102,40 +258,87 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
                 </span>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => onQuickStatus(job)}
-                  title="คลิกเพื่อเปลี่ยนสถานะงาน"
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-2xs ${
-                    job.finishStatus === 'FINISH'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-600/20'
-                      : job.finishStatus === 'IN_PROGRESS' || job.engineerHandoverDate
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                      : job.finishStatus === 'CANCELLED'
-                      ? 'bg-slate-400 hover:bg-slate-500 text-white'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                  }`}
-                >
-                  {job.finishStatus === 'FINISH' ? '✓ FINISH' : job.finishStatus}
-                </button>
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={job.finishStatus || 'PENDING'}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      const val = e.target.value;
+                      if (onUpdateStatus) {
+                        onUpdateStatus(job, val);
+                      } else {
+                        onQuickStatus({ ...job, finishStatus: val });
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title="คลิกเพื่อเปลี่ยนสถานะงาน Modify ทันที"
+                    className={`appearance-none text-[10px] font-bold py-0.5 pl-2 pr-5 rounded-full border cursor-pointer transition-all shadow-2xs focus:outline-none focus:ring-1 active:scale-95 text-center ${
+                      job.finishStatus === 'FINISH'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 ring-1 ring-emerald-600/20'
+                        : job.finishStatus === 'IN_PROGRESS' || job.engineerHandoverDate
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400'
+                        : job.finishStatus === 'CANCELLED'
+                        ? 'bg-slate-500 hover:bg-slate-600 text-white border-slate-400'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    <option value="PENDING" className="bg-white text-slate-800 font-semibold">⏳ รอดำเนินการ</option>
+                    <option value="IN_PROGRESS" className="bg-white text-amber-900 font-semibold">⚙️ กำลังดำเนินการ</option>
+                    <option value="FINISH" className="bg-white text-emerald-900 font-semibold">✅ เสร็จสมบูรณ์</option>
+                    <option value="CANCELLED" className="bg-white text-rose-900 font-semibold">🚫 ยกเลิก</option>
+                  </select>
+                  <ChevronDown className="w-2.5 h-2.5 absolute right-1.5 pointer-events-none opacity-80" />
+                </div>
                 {(() => {
                   const isComplete = job.inspectionResult === 'COMPLETE' || job.inspectionResult === 'PASS';
                   const isEdit = job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT';
-                  const label = isComplete ? 'COMPLETE' : isEdit ? 'EDIT' : (job.inspectionResult || 'WAITING');
+                  const isFinish = job.finishStatus === 'FINISH';
+                  const isWaiting = isFinish && !isComplete && !isEdit;
+
+                  if (isComplete) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => onQuickStatus(job)}
+                        title="คลิกเพื่อเปลี่ยนผลการตรวจ QC (COMPLETE)"
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300"
+                      >
+                        QC: COMPLETE
+                      </button>
+                    );
+                  }
+                  if (isEdit) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => onQuickStatus(job)}
+                        title="คลิกเพื่อเปลี่ยนผลการตรวจ QC (EDIT - ส่งกลับแก้ไข)"
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300"
+                      >
+                        QC: EDIT
+                      </button>
+                    );
+                  }
+                  if (isWaiting) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => onQuickStatus(job)}
+                        title="คลิกเพื่อเปลี่ยนผลการตรวจ QC (งานเสร็จ FINISH แล้ว รอการตรวจ QC)"
+                        className="px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all hover:scale-105 active:scale-95 cursor-pointer bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 animate-pulse shadow-2xs"
+                      >
+                        QC: WAITING
+                      </button>
+                    );
+                  }
                   return (
                     <button
                       type="button"
                       onClick={() => onQuickStatus(job)}
-                      title="คลิกเพื่อเปลี่ยนผลการตรวจ QC (WAITING / COMPLETE / EDIT)"
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer ${
-                        isComplete
-                          ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300'
-                          : isEdit
-                          ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
-                      }`}
+                      title="คลิกเพื่ออัปเดตสถานะ (ปุ่ม WAITING จะแสดงเมื่อสถานะงานเป็น FINISH)"
+                      className="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                     >
-                      QC: {label}
+                      QC: -
                     </button>
                   );
                 })()}
@@ -274,6 +477,87 @@ export const ModifyJobCardView: React.FC<ModifyJobCardViewProps> = ({
           </div>
         );
       })}
+      </div>
+
+      {/* Cards View Footer: 15 Latest Items Indicator & Pagination */}
+      <div className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-slate-800">
+            แสดง{' '}
+            {filteredJobs.length === 0
+              ? '0'
+              : `${(effectivePage - 1) * (pageSize || filteredJobs.length) + 1} - ${Math.min(
+                  effectivePage * (pageSize || filteredJobs.length),
+                  filteredJobs.length
+                )}`}{' '}
+            จากทั้งหมด <span className="font-bold text-blue-700">{filteredJobs.length}</span> รายการ
+          </span>
+          {pageSize > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800 text-[10px] font-bold border border-blue-200">
+              <Clock className="w-3 h-3" />
+              โชว์ {pageSize} ลำดับล่าสุด
+            </span>
+          )}
+        </div>
+
+        {totalPages > 1 && pageSize > 0 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={effectivePage <= 1}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-slate-700 flex items-center gap-1 transition-all"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>ก่อนหน้า</span>
+            </button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }).map((_, i) => {
+                const pageNum = i + 1;
+                if (
+                  totalPages <= 7 ||
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  Math.abs(pageNum - effectivePage) <= 1
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                        effectivePage === pageNum
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+                if (pageNum === 2 && effectivePage > 3) {
+                  return <span key="dots-1" className="px-1 text-slate-400">...</span>;
+                }
+                if (pageNum === totalPages - 1 && effectivePage < totalPages - 2) {
+                  return <span key="dots-2" className="px-1 text-slate-400">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={effectivePage >= totalPages}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-slate-700 flex items-center gap-1 transition-all"
+            >
+              <span>ถัดไป</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

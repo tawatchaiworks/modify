@@ -22,6 +22,7 @@ import {
   formatDateDisplay,
   formatThaiFullDate,
   getUrgencyDisplay,
+  getWorkTypeDisplay,
   calculateEstimatedCompletion,
   getCurrentDateFormatted,
 } from '../utils/formatters';
@@ -56,10 +57,19 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
   const reportJobs = useMemo(() => {
     return jobs.filter((job) => {
       if (selectedStatus === 'ALL') return true;
+      if (selectedStatus === 'PENDING') {
+        return (
+          (job.finishStatus === 'PENDING' || (!job.finishStatus && !job.engineerHandoverDate)) &&
+          job.finishStatus !== 'FINISH' &&
+          job.finishStatus !== 'IN_PROGRESS' &&
+          job.finishStatus !== 'CANCELLED'
+        );
+      }
       if (selectedStatus === 'IN_PROGRESS') {
         return (
-          job.finishStatus === 'IN_PROGRESS' ||
-          (Boolean(job.engineerHandoverDate) && job.finishStatus !== 'FINISH' && job.finishStatus !== 'CANCELLED')
+          (job.finishStatus === 'IN_PROGRESS' || (Boolean(job.engineerHandoverDate) && job.finishStatus !== 'PENDING')) &&
+          job.finishStatus !== 'FINISH' &&
+          job.finishStatus !== 'CANCELLED'
         );
       }
       if (selectedStatus === 'COMPLETE' || selectedStatus === 'PASS') {
@@ -72,7 +82,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
         return job.inspectionResult === 'WAITING' || job.inspectionResult === 'PENDING' || !job.inspectionResult;
       }
       if (selectedStatus === 'FINISH') {
-        return job.finishStatus === 'FINISH';
+        return job.finishStatus === 'FINISH' && (job.inspectionResult === 'COMPLETE' || job.inspectionResult === 'PASS');
       }
       return true;
     });
@@ -99,20 +109,25 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
 
   // Overall Statistics for report summary header
   const totalCount = jobs.length;
-  const finishCount = jobs.filter((j) => j.finishStatus === 'FINISH').length;
+  const finishCount = jobs.filter((j) => j.finishStatus === 'FINISH' && (j.inspectionResult === 'COMPLETE' || j.inspectionResult === 'PASS')).length;
   const inProgressCount = jobs.filter(
     (j) =>
-      j.finishStatus === 'IN_PROGRESS' ||
-      (Boolean(j.engineerHandoverDate) && j.finishStatus !== 'FINISH' && j.finishStatus !== 'CANCELLED')
+      (j.finishStatus === 'IN_PROGRESS' || (Boolean(j.engineerHandoverDate) && j.finishStatus !== 'PENDING')) &&
+      j.finishStatus !== 'FINISH' &&
+      j.finishStatus !== 'CANCELLED'
   ).length;
   const passCount = jobs.filter((j) => j.inspectionResult === 'COMPLETE' || j.inspectionResult === 'PASS').length;
   const editCount = jobs.filter((j) => j.inspectionResult === 'EDIT' || j.inspectionResult === 'REJECT').length;
   const waitingCount = jobs.filter(
-    (j) => j.inspectionResult === 'WAITING' || j.inspectionResult === 'PENDING' || !j.inspectionResult
+    (j) =>
+      j.finishStatus === 'FINISH' &&
+      (j.inspectionResult === 'WAITING' || j.inspectionResult === 'PENDING' || !j.inspectionResult)
   ).length;
 
   const getStatusTitle = (status: string) => {
     switch (status) {
+      case 'PENDING':
+        return 'รายงานสถานะ: รอดำเนินการ / รอจัดคิวเริ่มงาน (PENDING)';
       case 'IN_PROGRESS':
         return 'รายงานสถานะ: กำลังดำเนินการ / อยู่กับ Engineer (IN PROGRESS)';
       case 'FINISH':
@@ -132,6 +147,11 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'PENDING':
+        return {
+          label: '⏳ รอดำเนินการ (PENDING)',
+          bg: 'bg-slate-200 text-slate-900 border-slate-400',
+        };
       case 'IN_PROGRESS':
         return {
           label: '🟡 กำลังดำเนินการ',
@@ -201,6 +221,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
               className="bg-transparent text-xs font-bold text-white border-none outline-none cursor-pointer pr-2"
             >
               <option value="ALL" className="bg-slate-900 text-white">📋 ทุกสถานะงาน (All Jobs)</option>
+              <option value="PENDING" className="bg-slate-900 text-white">⏳ รอดำเนินการ (Pending)</option>
               <option value="IN_PROGRESS" className="bg-slate-900 text-white">🟡 กำลังดำเนินการ (In Progress)</option>
               <option value="FINISH" className="bg-slate-900 text-white">🟢 เสร็จสมบูรณ์ (Finish)</option>
               <option value="COMPLETE" className="bg-slate-900 text-white">✅ ตรวจผ่าน (QC Complete/Pass)</option>
@@ -370,8 +391,9 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                 <table className="w-full text-left text-xs border-collapse font-sans">
                   <thead>
                     <tr className="bg-slate-800 text-white text-[11px] font-bold">
-                      <th className="p-2 border-r border-slate-700 w-8 text-center">#</th>
-                      <th className="p-2 border-r border-slate-700 min-w-[90px]">Job ID</th>
+                      <th className="p-2 border-r border-slate-700 w-12 text-center">ลำดับที่</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[85px]">Job ID</th>
+                      <th className="p-2 border-r border-slate-700 min-w-[100px]">ประเภทงาน</th>
                       <th className="p-2 border-r border-slate-700 min-w-[80px]">ความเร่งด่วน</th>
                       <th className="p-2 border-r border-slate-700 min-w-[95px]">Sale SO No.</th>
                       <th className="p-2 border-r border-slate-700 min-w-[130px]">ลูกค้า & โครงการ</th>
@@ -391,6 +413,7 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                       const isRowEdit = job.inspectionResult === 'EDIT' || job.inspectionResult === 'REJECT';
                       const isRowFinish = job.finishStatus === 'FINISH';
                       const urgency = getUrgencyDisplay(job.urgencyLevel);
+                      const workType = getWorkTypeDisplay(job.workTypes || job.workType);
                       const estDateDisplay = getJobEstimatedDate(job);
 
                       return (
@@ -405,6 +428,15 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                           </td>
                           <td className="p-2 border-r border-slate-200 font-mono font-bold text-blue-900 whitespace-nowrap">
                             {job.id}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 whitespace-nowrap">
+                            {workType.matched.length > 0 ? (
+                              <span className="text-[10px] font-bold text-slate-800">
+                                {workType.label}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500">🔨 Modify ทั่วไป</span>
+                            )}
                           </td>
                           <td className="p-2 border-r border-slate-200 whitespace-nowrap">
                             <span
@@ -445,17 +477,30 @@ export const PrintStatusReportModal: React.FC<PrintStatusReportModalProps> = ({
                             {formatDateDisplay(job.inspectionDate)}
                           </td>
                           <td className="p-2 border-r border-slate-200 text-center">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block border ${
-                                isRowComplete
-                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                  : isRowEdit
-                                  ? 'bg-rose-100 text-rose-900 border-rose-300'
-                                  : 'bg-slate-100 text-slate-700 border-slate-200'
-                              }`}
-                            >
-                              {job.inspectionResult || 'WAITING'}
-                            </span>
+                            {(() => {
+                              if (isRowComplete) {
+                                return (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold inline-block border bg-emerald-100 text-emerald-900 border-emerald-300">
+                                    COMPLETE
+                                  </span>
+                                );
+                              }
+                              if (isRowEdit) {
+                                return (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold inline-block border bg-rose-100 text-rose-900 border-rose-300">
+                                    EDIT
+                                  </span>
+                                );
+                              }
+                              if (isRowFinish) {
+                                return (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold inline-block border bg-amber-100 text-amber-900 border-amber-300">
+                                    WAITING
+                                  </span>
+                                );
+                              }
+                              return <span className="text-[10px] text-slate-400 font-medium">-</span>;
+                            })()}
                           </td>
                           <td className="p-2 text-center">
                             <span

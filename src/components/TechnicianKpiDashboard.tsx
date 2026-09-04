@@ -209,9 +209,10 @@ export const TechnicianKpiDashboard: React.FC<TechnicianKpiDashboardProps> = ({
       ).length;
       const waitingQcJobs = techJobs.filter(
         (j) =>
-          j.inspectionResult === 'WAITING' ||
-          j.inspectionResult === 'PENDING' ||
-          !j.inspectionResult
+          j.finishStatus === 'FINISH' &&
+          (j.inspectionResult === 'WAITING' ||
+            j.inspectionResult === 'PENDING' ||
+            !j.inspectionResult)
       ).length;
 
       const urgentJobs = techJobs.filter(
@@ -331,9 +332,10 @@ export const TechnicianKpiDashboard: React.FC<TechnicianKpiDashboardProps> = ({
     ).length;
     const waitingQc = filteredJobs.filter(
       (j) =>
-        j.inspectionResult === 'WAITING' ||
-        j.inspectionResult === 'PENDING' ||
-        !j.inspectionResult
+        j.finishStatus === 'FINISH' &&
+        (j.inspectionResult === 'WAITING' ||
+          j.inspectionResult === 'PENDING' ||
+          !j.inspectionResult)
     ).length;
 
     const inspectedCount = passQc + editQc;

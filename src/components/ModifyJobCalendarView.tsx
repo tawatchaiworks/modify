@@ -47,6 +47,9 @@ import {
   generateGoogleCalendarLink,
   exportIcsCalendar,
   getCurrentDateFormatted,
+  getJobWorkPlanDetails,
+  getDaysDifference,
+  isWeekend,
 } from '../utils/formatters';
 
 interface ModifyJobCalendarViewProps {
@@ -231,18 +234,34 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
   }, [currentDate]);
 
   // 3. Filtered Jobs specifically for current month
+  // ⚡ RULE: เฉพาะงานที่เริ่มดำเนินการ (IN_PROGRESS) จนถึงเสร็จสมบูรณ์ (FINISH) เท่านั้นที่จะลงในแผนงาน/ปฏิทิน
+  // งานสถานะ "รอดำเนินการ (PENDING)" จะยังไม่ลงในแผนงานหรือปฏิทินจนกว่าสถานะจะถูกเปลี่ยนเป็น "ดำเนินการ"
   const currentMonthJobs = useMemo(() => {
     const currentMonthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
     const thaiMonthName = THAI_MONTHS[currentMonth];
 
     return jobs.filter((job) => {
+      const isJobActive =
+        job.finishStatus === 'IN_PROGRESS' ||
+        job.finishStatus === 'FINISH' ||
+        (job.finishStatus !== 'PENDING' && job.finishStatus !== 'CANCELLED' && Boolean(job.engineerHandoverDate));
+
+      if (!isJobActive && selectedStatus !== 'PENDING') {
+        return false;
+      }
+
+      if (selectedStatus === 'PENDING' && isJobActive) {
+        return false;
+      }
+
       // Match by ISO dates or by requestMonth string
       const dates = [
-        job.requestDate,
         job.engineerHandoverDate,
         job.estimatedReturnDate,
         job.inspectionDate,
         job.shipmentDate,
+        job.finishDate,
+        ...(selectedStatus === 'PENDING' ? [job.requestDate] : []),
       ].filter(Boolean);
 
       const hasDateInMonth = dates.some((d) => {
@@ -258,7 +277,17 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
 
       return hasDateInMonth || hasMonthText;
     });
-  }, [jobs, currentYear, currentMonth]);
+  }, [jobs, currentYear, currentMonth, selectedStatus]);
+
+  // List of pending jobs waiting to be started (not yet on calendar)
+  const pendingJobsList = useMemo(() => {
+    return jobs.filter(
+      (j) =>
+        j.finishStatus === 'PENDING' ||
+        (!j.finishStatus && !j.engineerHandoverDate) ||
+        (j.finishStatus !== 'IN_PROGRESS' && j.finishStatus !== 'FINISH' && !j.engineerHandoverDate)
+    );
+  }, [jobs]);
 
   // Search filtered month jobs for the master schedule table
   const displayMonthJobs = useMemo(() => {
@@ -301,16 +330,30 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
   const selectedDayJobs = useMemo(() => {
     const dayIso = calendarView === 'day' ? currentISO : selectedDayISO;
     return jobs.filter((job) => {
+      const isJobActive =
+        job.finishStatus === 'IN_PROGRESS' ||
+        job.finishStatus === 'FINISH' ||
+        (job.finishStatus !== 'PENDING' && job.finishStatus !== 'CANCELLED' && Boolean(job.engineerHandoverDate));
+
+      if (!isJobActive && selectedStatus !== 'PENDING') {
+        return false;
+      }
+
+      if (selectedStatus === 'PENDING' && isJobActive) {
+        return false;
+      }
+
       const dates = [
-        job.requestDate,
         job.engineerHandoverDate,
         job.estimatedReturnDate,
         job.inspectionDate,
         job.shipmentDate,
+        job.finishDate,
+        ...(selectedStatus === 'PENDING' ? [job.requestDate] : []),
       ].filter(Boolean);
       return dates.some((d) => normalizeToISODate(d) === dayIso);
     });
-  }, [jobs, calendarView, currentISO, selectedDayISO]);
+  }, [jobs, calendarView, currentISO, selectedDayISO, selectedStatus]);
 
   return (
     <div className="space-y-5">
@@ -433,64 +476,138 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
       </div>
 
       {/* 3. Filter & Milestone Legend Bar */}
-      <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        {/* Milestone Type Selector */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-slate-500 font-semibold flex items-center gap-1 mr-1">
-            <Filter className="w-3.5 h-3.5 text-blue-600" />
-            <span>กำหนดการ:</span>
-          </span>
-          {[
-            { id: 'all', label: 'ทั้งหมด' },
-            { id: 'request', label: '📝 ขอเปิดงาน (Request)', color: 'border-blue-300 bg-blue-50 text-blue-700' },
-            { id: 'handover', label: '🛠️ ส่งมอบ Engineer', color: 'border-indigo-300 bg-indigo-50 text-indigo-700' },
-            { id: 'estimatedReturn', label: '⏳ ประมาณการส่งคืน', color: 'border-amber-300 bg-amber-50 text-amber-800' },
-            { id: 'inspection', label: '🔍 ตรวจสอบ QC', color: 'border-emerald-300 bg-emerald-50 text-emerald-800' },
-            { id: 'shipment', label: '🚚 กำหนดส่งสินค้า', color: 'border-purple-300 bg-purple-50 text-purple-800' },
-          ].map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setSelectedMilestone(m.id as CalendarMilestoneType)}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                selectedMilestone === m.id
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Status Filter Selector & Add Button */}
-        <div className="flex items-center gap-3 self-end md:self-auto">
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-500 font-semibold text-xs">สถานะ:</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden font-medium"
-            >
-              <option value="ALL">สถานะทั้งหมด</option>
-              <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (IN PROGRESS)</option>
-              <option value="FINISH">🟢 เสร็จสิ้นแล้ว (FINISH)</option>
-              <option value="COMPLETE">✅ ตรวจผ่าน (COMPLETE)</option>
-              <option value="EDIT">⚠️ ส่งกลับแก้ไข (EDIT)</option>
-              <option value="WAITING">⏳ รอตรวจ (WAITING)</option>
-            </select>
+      <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-2.5 text-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Milestone Type Selector */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-slate-500 font-semibold flex items-center gap-1 mr-1">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>กำหนดการ:</span>
+            </span>
+            {[
+              { id: 'all', label: 'ทั้งหมด' },
+              { id: 'workPlan', label: '📅 แผนงาน & ทำงานจริง (Work Duration)', color: 'border-emerald-300 bg-emerald-50 text-emerald-800' },
+              { id: 'request', label: '📝 ขอเปิดงาน (Request)', color: 'border-blue-300 bg-blue-50 text-blue-700' },
+              { id: 'handover', label: '🛠️ ส่งมอบ Engineer', color: 'border-indigo-300 bg-indigo-50 text-indigo-700' },
+              { id: 'estimatedReturn', label: '⏳ ประมาณการส่งคืน', color: 'border-amber-300 bg-amber-50 text-amber-800' },
+              { id: 'inspection', label: '🔍 ตรวจสอบ QC', color: 'border-emerald-300 bg-emerald-50 text-emerald-800' },
+              { id: 'shipment', label: '🚚 กำหนดส่งสินค้า', color: 'border-purple-300 bg-purple-50 text-purple-800' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setSelectedMilestone(m.id as CalendarMilestoneType)}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  selectedMilestone === m.id
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
 
-          <button
-            type="button"
-            onClick={onAddNew}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>+ สร้างคำขอ Modify</span>
-          </button>
+          {/* Status Filter Selector & Add Button */}
+          <div className="flex items-center gap-3 self-end md:self-auto">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-xs">สถานะ:</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden font-medium"
+              >
+                <option value="ALL">สถานะทั้งหมด (ในปฏิทิน)</option>
+                <option value="IN_PROGRESS">🟡 กำลังดำเนินการ (IN PROGRESS)</option>
+                <option value="FINISH">🟢 เสร็จสิ้นแล้ว (FINISH)</option>
+                <option value="COMPLETE">✅ ตรวจผ่าน (COMPLETE)</option>
+                <option value="EDIT">⚠️ ส่งกลับแก้ไข (EDIT)</option>
+                <option value="WAITING">⏳ รอตรวจ (WAITING)</option>
+                <option value="PENDING">⏳ รอดำเนินการ (ยังไม่ลงปฏิทิน)</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={onAddNew}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ สร้างคำขอ Modify</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Working Days & Weekend Rules Badge */}
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5 text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 font-medium">
+            <span>☕</span>
+            <span><strong>นโยบายวันทำงาน:</strong> วันเสาร์และวันอาทิตย์เป็นวันหยุด (ไม่นับเป็นวันทำงานในแผนงาน Modify)</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-500">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
+              แผนงาน (จันทร์-ศุกร์)
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+              ทำงานจริง
+            </span>
+            <span className="inline-flex items-center gap-1 text-rose-600">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block"></span>
+              วันหยุด (เสาร์-อาทิตย์)
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Pending Jobs Rule Notice Bar */}
+      {selectedStatus === 'PENDING' ? (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <span className="text-xl p-1.5 bg-amber-200 rounded-xl shrink-0">⏳</span>
+            <div>
+              <span className="font-bold text-sm block text-amber-900">
+                โหมดแสดงรายการงาน &quot;รอดำเนินการ (PENDING)&quot; — ทั้งหมด {pendingJobsList.length} รายการ
+              </span>
+              <span className="text-amber-800 text-[11px]">
+                งานเหล่านี้ยังไม่ถูกนำลงในแผนงานหรือปฏิทินงาน เมื่อช่างหรือวิศวกรเริ่มงาน ให้เปลี่ยนสถานะเป็น &quot;กำลังดำเนินการ (IN PROGRESS)&quot; เพื่อลงตารางปฏิทินอัตโนมัติ
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedStatus('ALL')}
+            className="px-3.5 py-1.5 bg-white hover:bg-amber-100 text-amber-900 font-bold rounded-xl border border-amber-300 shadow-2xs text-xs shrink-0 cursor-pointer"
+          >
+            กลับสู่ปฏิทินงานหลัก
+          </button>
+        </div>
+      ) : pendingJobsList.length > 0 ? (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <span className="text-lg p-1 bg-amber-200/80 rounded-lg shrink-0">📌</span>
+            <div>
+              <span className="font-bold text-slate-900">
+                กฎการลงปฏิทินงาน:{' '}
+                <span className="font-normal text-slate-700">
+                  งานสถานะ <strong>&quot;รอดำเนินการ&quot;</strong> จะยังไม่ลงในแผนงานหรือปฏิทิน จนกว่าจะเปลี่ยนเป็น <strong>&quot;กำลังดำเนินการ (IN PROGRESS)&quot;</strong> และรันงานไปจนถึง <strong>&quot;เสร็จสมบูรณ์ (FINISH)&quot;</strong>
+                </span>
+              </span>
+              <span className="block text-[11px] text-amber-800 mt-0.5">
+                (ขณะนี้มีงานรอดำเนินการอยู่ในคิว {pendingJobsList.length} รายการที่ยังไม่ลงปฏิทิน)
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedStatus('PENDING')}
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-2xs text-xs shrink-0 cursor-pointer transition-all active:scale-95"
+          >
+            ดูงานรอดำเนินการ ({pendingJobsList.length})
+          </button>
+        </div>
+      ) : null}
 
       {/* =========================================================================
           VIEW 1: MONTH VIEW (แผนรายเดือน พร้อมรายละเอียดงานครบถ้วน)
@@ -540,13 +657,13 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             {/* Day of Week Headers */}
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/90 text-center py-2.5 text-xs font-bold text-slate-700">
-              <span className="text-rose-600">อาทิตย์</span>
+              <span className="text-rose-600 bg-rose-50/70 py-0.5 rounded-md mx-1">อาทิตย์ (วันหยุด)</span>
               <span>จันทร์</span>
               <span>อังคาร</span>
               <span>พุธ</span>
               <span>พฤหัสบดี</span>
               <span>ศุกร์</span>
-              <span className="text-blue-600">เสาร์</span>
+              <span className="text-rose-600 bg-rose-50/70 py-0.5 rounded-md mx-1">เสาร์ (วันหยุด)</span>
             </div>
 
             {/* Month Grid Cells */}
@@ -555,6 +672,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                 const dayEvents = eventsByDate[dayObj.iso] || [];
                 const isToday = dayObj.iso === todayISO;
                 const isSelected = dayObj.iso === selectedDayISO;
+                const isWeekendCell = dayObj.date.getDay() === 0 || dayObj.date.getDay() === 6;
 
                 return (
                   <div
@@ -567,23 +685,36 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                       !dayObj.isCurrentMonth
                         ? 'bg-slate-50/40 text-slate-400'
                         : isSelected
-                        ? 'bg-blue-50/60 ring-2 ring-blue-500/60 z-10'
+                        ? isWeekendCell
+                          ? 'bg-rose-50/90 ring-2 ring-blue-500/60 z-10'
+                          : 'bg-blue-50/60 ring-2 ring-blue-500/60 z-10'
+                        : isWeekendCell
+                        ? 'bg-rose-50/20 hover:bg-rose-50/40'
                         : 'bg-white hover:bg-slate-50/90'
                     }`}
                   >
                     {/* Cell Day Number Header */}
                     <div className="flex items-center justify-between mb-1">
-                      <span
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                          isToday
-                            ? 'bg-blue-600 text-white shadow-xs'
-                            : dayObj.isCurrentMonth
-                            ? 'text-slate-800 group-hover:bg-slate-200/70'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {dayObj.dayNum}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                            isToday
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : isWeekendCell && dayObj.isCurrentMonth
+                              ? 'text-rose-600 group-hover:bg-rose-100'
+                              : dayObj.isCurrentMonth
+                              ? 'text-slate-800 group-hover:bg-slate-200/70'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {dayObj.dayNum}
+                        </span>
+                        {isWeekendCell && dayObj.isCurrentMonth && (
+                          <span className="text-[9px] font-semibold text-rose-500/90 bg-rose-50 px-1 py-0.2 rounded border border-rose-100/60 hidden sm:inline">
+                            วันหยุด
+                          </span>
+                        )}
+                      </div>
 
                       {dayEvents.length > 0 && (
                         <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700">
@@ -597,6 +728,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                       {dayEvents.slice(0, 3).map((ev) => {
                         const isFinish = ev.job.finishStatus === 'FINISH';
                         const isInProgress = ev.job.finishStatus === 'IN_PROGRESS';
+                        const isWorkPlan = ev.type === 'workPlan';
                         const statusColor = isFinish
                           ? 'bg-emerald-600 text-white'
                           : isInProgress
@@ -616,17 +748,31 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               setSelectedDayISO(ev.date);
                               setMonthDetailMode('selected_day');
                             }}
-                            title={`SO No: ${ev.job.saleSoNo || '-'} | สถานะงาน: ${ev.job.finishStatus || 'PENDING'} | ประมาณการส่ง: ${ev.job.estimatedReturnDate || '-'} | QC: ${ev.job.inspectionResult || 'WAITING'} | โครงการ: ${ev.job.project || '-'} | ลูกค้า: ${ev.customer} | เซลล์: ${ev.job.sale || '-'} | ช่าง: ${ev.job.technician || '-'}`}
+                            title={`SO No: ${ev.job.saleSoNo || '-'} | สถานะงาน: ${ev.job.finishStatus || 'PENDING'} | รับงาน: ${ev.job.engineerHandoverDate || ev.job.requestDate || '-'} | วันเสร็จ/ประมาณการ: ${ev.job.finishDate || ev.job.estimatedReturnDate || '-'} | QC: ${ev.job.inspectionResult || 'WAITING'} | โครงการ: ${ev.job.project || '-'} | ลูกค้า: ${ev.customer} | ช่าง: ${ev.job.technician || '-'}`}
                             className={`p-1.5 rounded-lg text-[10px] sm:text-[11px] font-semibold border cursor-pointer transition-all shadow-2xs ${ev.colorClass.bg} ${ev.colorClass.border} hover:shadow-xs hover:border-blue-400`}
                           >
-                            {/* Line 1: SO No. + Job Status Badge */}
+                            {/* Line 1: SO No. + Tag/Status */}
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <span className="font-mono font-black text-[9px] sm:text-[10px] text-blue-900 bg-blue-100/90 px-1.5 py-0.5 rounded border border-blue-200 truncate">
                                 SO: {ev.job.saleSoNo ? ev.job.saleSoNo : ev.jobId}
                               </span>
-                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${statusColor}`}>
-                                {statusText}
-                              </span>
+                              {isWorkPlan ? (
+                                <span
+                                  className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                    ev.isFinishedSpan
+                                      ? 'bg-emerald-700 text-white'
+                                      : 'bg-blue-700 text-white'
+                                  }`}
+                                >
+                                  {ev.isFinishedSpan
+                                    ? `🟢 วันจริง ${ev.dayIndex}/${ev.totalDays}`
+                                    : `🛠️ แผน ${ev.dayIndex}/${ev.totalDays}`}
+                                </span>
+                              ) : (
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${statusColor}`}>
+                                  {statusText}
+                                </span>
+                              )}
                             </div>
 
                             {/* Line 2: Customer & Project */}
@@ -635,14 +781,34 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               <span className="truncate">{ev.customer}</span>
                             </div>
 
-                            {/* Line 3: วันที่ประมาณการส่ง (Estimated Return Date) */}
-                            {ev.job.estimatedReturnDate && (
-                              <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200/70 font-mono mt-0.5 truncate">
-                                <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                                <span className="truncate font-semibold">
-                                  นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
-                                </span>
+                            {/* Line 3: Duration info or Estimated Return Date */}
+                            {isWorkPlan ? (
+                              <div className="mt-0.5">
+                                {ev.isFinishedSpan ? (
+                                  <div className="flex items-center gap-1 text-[9px] text-emerald-950 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-300/80 font-mono truncate">
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-700 shrink-0" />
+                                    <span className="truncate font-semibold">
+                                      ใช้จริง {ev.actualDaysUsed} วัน ({ev.diffLabel})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1 text-[9px] text-blue-950 bg-blue-100/90 px-1.5 py-0.5 rounded border border-blue-200 font-mono truncate">
+                                    <Clock className="w-2.5 h-2.5 text-blue-700 shrink-0" />
+                                    <span className="truncate font-semibold">
+                                      แผน {ev.plannedDaysCount} วัน (ส่ง {formatDateDisplay(ev.job.estimatedReturnDate)})
+                                    </span>
+                                  </div>
+                                )}
                               </div>
+                            ) : (
+                              ev.job.estimatedReturnDate && (
+                                <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-200/70 font-mono mt-0.5 truncate">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                  <span className="truncate font-semibold">
+                                    นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
+                                  </span>
+                                </div>
+                              )
                             )}
 
                             {/* Line 4: Milestone & Technician */}
@@ -745,13 +911,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                 {displayMonthJobs.length === 0 ? (
                   <div className="p-12 text-center text-slate-500 space-y-2">
                     <p className="font-semibold text-sm">ไม่พบรายการงานในเดือนนี้ตามคำค้นหา</p>
-                    <button
-                      type="button"
-                      onClick={onAddNew}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all"
-                    >
-                      + เพิ่มงาน Modify ประจำเดือนนี้
-                    </button>
                   </div>
                 ) : (
                   <table className="w-full text-left text-xs text-slate-700">
@@ -762,6 +921,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                         <th className="py-3 px-3.5">ชื่อเซลล์ (Sale)</th>
                         <th className="py-3 px-3.5">ชื่อช่าง (Technician)</th>
                         <th className="py-3 px-3.5">กำหนดการสำคัญ</th>
+                        <th className="py-3 px-3.5">แผนงาน & วันทำงานจริง (Duration)</th>
                         <th className="py-3 px-3.5">สถานะงาน / QC</th>
                         <th className="py-3 px-3.5 text-right">การจัดการ</th>
                       </tr>
@@ -779,6 +939,7 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                           : job.inspectionResult || 'WAITING';
 
                         const loginUser = job.createdBy || activeUserEmail;
+                        const workPlan = getJobWorkPlanDetails(job);
 
                         return (
                           <tr key={job.id} className="hover:bg-blue-50/40 transition-colors">
@@ -851,6 +1012,60 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                                     🔍 ตรวจ QC: <strong>{formatDateDisplay(job.inspectionDate)}</strong>
                                   </span>
                                 )}
+                              </div>
+                            </td>
+
+                            {/* Work Duration & Plan Timeline */}
+                            <td className="py-3.5 px-3.5 align-top min-w-[190px]">
+                              <div className="space-y-1 text-xs">
+                                <div className="text-[11px] text-slate-600">
+                                  <span className="text-slate-500">รับงาน: </span>
+                                  <strong className="text-slate-800">{formatDateDisplay(workPlan.startDate)}</strong>
+                                </div>
+                                <div className="text-[11px]">
+                                  {workPlan.isFinished ? (
+                                    <span className="text-emerald-800 font-semibold">
+                                      🏁 วันที่ Finish: <strong>{formatDateDisplay(workPlan.effectiveEndDate)}</strong>
+                                    </span>
+                                  ) : (
+                                    <span className="text-amber-800 font-semibold">
+                                      ⏳ วันประมาณการ: <strong>{formatDateDisplay(workPlan.plannedEndDate)}</strong>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="pt-0.5 space-y-0.5">
+                                  {workPlan.isFinished ? (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                        ใช้เวลาจริง: {workPlan.actualDays} วัน (แผน {workPlan.plannedDays} วัน)
+                                      </span>
+                                      <span className={`text-[10px] font-bold block ${
+                                        workPlan.diffStatus === 'FASTER'
+                                          ? 'text-emerald-700'
+                                          : workPlan.diffStatus === 'OVERDUE'
+                                          ? 'text-rose-700'
+                                          : 'text-blue-700'
+                                      }`}>
+                                        {workPlan.diffStatus === 'FASTER' && '⚡ '}
+                                        {workPlan.diffStatus === 'OVERDUE' && '⚠️ '}
+                                        {workPlan.diffStatus === 'ON_TIME' && '🎯 '}
+                                        {workPlan.diffLabel}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                                        <Clock className="w-3 h-3 text-blue-600" />
+                                        แผนงาน: {workPlan.plannedDays} วัน
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 block">
+                                        ผ่านมา {workPlan.daysElapsed} วัน • {workPlan.daysRemaining >= 0 ? `เหลืออีก ${workPlan.daysRemaining} วัน` : `เกินกำหนด ${Math.abs(workPlan.daysRemaining)} วัน`}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </td>
 
@@ -1057,6 +1272,88 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                             </div>
                           </div>
 
+                          {/* Work Plan & Duration Calculation Timeline Box */}
+                          {(() => {
+                            const wp = getJobWorkPlanDetails(job);
+                            return (
+                              <div className="p-3 rounded-xl border bg-slate-50/80 border-slate-200/80 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                                    <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                                    <span>แผนการทำงาน & ระยะเวลาทำงานจริง:</span>
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      wp.isFinished ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                                    }`}
+                                  >
+                                    {wp.isFinished ? '🟢 ทำงานเสร็จแล้ว (FINISH)' : '🛠️ อยู่ระหว่างดำเนินการ'}
+                                  </span>
+                                </div>
+
+                                {/* Visual Timeline Bar */}
+                                <div className="flex items-center justify-between text-[11px] bg-white p-2 rounded-lg border border-slate-200">
+                                  <div className="text-left">
+                                    <span className="text-[10px] text-slate-400 block font-medium">วันรับมอบสินค้า (Start)</span>
+                                    <span className="font-bold text-slate-800">{formatDateDisplay(wp.startDate)}</span>
+                                  </div>
+                                  <div className="flex-1 mx-3 flex flex-col items-center">
+                                    <span className="text-[10px] font-bold text-slate-500 mb-0.5">
+                                      {wp.isFinished ? `ใช้จริง ${wp.actualDays} วัน` : `แผน ${wp.plannedDays} วัน`}
+                                    </span>
+                                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden relative">
+                                      <div
+                                        className={`h-full rounded-full ${wp.isFinished ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                                        style={{ width: '100%' }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-[10px] text-slate-400 block font-medium">
+                                      {wp.isFinished ? 'วันเสร็จจริง (Finish)' : 'วันประมาณการ (Plan)'}
+                                    </span>
+                                    <span className={`font-bold ${wp.isFinished ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                      {formatDateDisplay(wp.effectiveEndDate)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="bg-white p-2 rounded-lg border border-slate-200">
+                                    <span className="text-[10px] text-slate-500 block">
+                                      {wp.isFinished ? '⏱️ วันทำงานจริงใช้ไป:' : '⏱️ ระยะเวลาทำงานตามแผน:'}
+                                    </span>
+                                    <strong className="text-sm text-slate-900 font-bold">
+                                      {wp.actualDays} วัน{' '}
+                                      <span className="text-[10px] text-slate-500 font-normal">
+                                        (แผนเดิม {wp.plannedDays} วัน)
+                                      </span>
+                                    </strong>
+                                  </div>
+                                  <div className="bg-white p-2 rounded-lg border border-slate-200">
+                                    <span className="text-[10px] text-slate-500 block">ประเมินผลเวลา:</span>
+                                    <span
+                                      className={`text-xs font-bold block mt-0.5 ${
+                                        wp.diffStatus === 'FASTER'
+                                          ? 'text-emerald-700'
+                                          : wp.diffStatus === 'OVERDUE' || wp.diffStatus === 'EXCEEDED'
+                                          ? 'text-rose-700'
+                                          : 'text-blue-700'
+                                      }`}
+                                    >
+                                      {wp.diffStatus === 'FASTER' && '⚡ '}
+                                      {wp.diffStatus === 'OVERDUE' && '⚠️ '}
+                                      {wp.diffStatus === 'EXCEEDED' && '⚠️ '}
+                                      {wp.diffStatus === 'ON_TIME' && '🎯 '}
+                                      {wp.diffLabel}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                           {/* Action row */}
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                             <button
@@ -1105,38 +1402,62 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
             {weekDays.map((day) => {
               const dayEvents = eventsByDate[day.iso] || [];
               const isToday = day.iso === todayISO;
+              const isWeekendDay = day.date.getDay() === 0 || day.date.getDay() === 6;
 
               return (
                 <div
                   key={day.iso}
                   className={`bg-white rounded-2xl border flex flex-col overflow-hidden shadow-xs transition-all ${
-                    isToday ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200'
+                    isToday
+                      ? 'border-blue-500 ring-2 ring-blue-500/20'
+                      : isWeekendDay
+                      ? 'border-rose-200 bg-rose-50/10'
+                      : 'border-slate-200'
                   }`}
                 >
                   {/* Day Column Header */}
                   <div
                     className={`p-3 border-b text-center ${
-                      isToday ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-800'
+                      isToday
+                        ? 'bg-blue-600 text-white'
+                        : isWeekendDay
+                        ? 'bg-rose-50 text-rose-900 border-rose-200'
+                        : 'bg-slate-50 text-slate-800'
                     }`}
                   >
-                    <span className="text-xs font-bold block">{day.dayName}</span>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-xs font-bold">{day.dayName}</span>
+                      {isWeekendDay && (
+                        <span className={`text-[9px] font-bold px-1 py-0.2 rounded ${isToday ? 'bg-blue-700 text-white' : 'bg-rose-100 text-rose-700'}`}>
+                          วันหยุด
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`text-lg font-black inline-block mt-0.5 ${
-                        isToday ? 'text-white' : 'text-slate-900'
+                        isToday ? 'text-white' : isWeekendDay ? 'text-rose-700' : 'text-slate-900'
                       }`}
                     >
                       {day.dayNum}
                     </span>
-                    <span className={`text-[10px] block ${isToday ? 'text-blue-100' : 'text-slate-500'}`}>
+                    <span className={`text-[10px] block ${isToday ? 'text-blue-100' : isWeekendDay ? 'text-rose-500' : 'text-slate-500'}`}>
                       {formatDateDisplay(day.iso)}
                     </span>
                   </div>
 
                   {/* Day Events Column */}
-                  <div className="p-2 space-y-2 flex-1 min-h-[300px] bg-slate-50/40 overflow-y-auto">
+                  <div className={`p-2 space-y-2 flex-1 min-h-[300px] overflow-y-auto ${isWeekendDay ? 'bg-rose-50/20' : 'bg-slate-50/40'}`}>
                     {dayEvents.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-center p-3">
-                        <span className="text-[11px] text-slate-400 font-medium">ไม่มีกำหนดการ</span>
+                      <div className="h-full flex flex-col items-center justify-center text-center p-3">
+                        {isWeekendDay ? (
+                          <>
+                            <span className="text-base mb-1">☕</span>
+                            <span className="text-[11px] font-bold text-rose-600">วันหยุดประจำสัปดาห์</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">ไม่นับเป็นวันทำงานในแผน</span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">ไม่มีกำหนดการ</span>
+                        )}
                       </div>
                     ) : (
                       dayEvents.map((ev) => {
@@ -1166,13 +1487,27 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               </span>
                             </div>
 
-                            {/* Milestone Badge */}
+                            {/* Milestone / Work Plan Badge */}
                             <div>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold inline-block ${ev.colorClass.badge}`}
-                              >
-                                {ev.typeLabel}
-                              </span>
+                              {ev.type === 'workPlan' ? (
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold inline-block ${
+                                    ev.isFinishedSpan
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-blue-600 text-white'
+                                  }`}
+                                >
+                                  {ev.isFinishedSpan
+                                    ? `🟢 ทำงานจริง (${ev.dayIndex}/${ev.totalDays} วันทำการ)`
+                                    : `🛠️ แผนงาน (${ev.dayIndex}/${ev.totalDays} วันทำการ)`}
+                                </span>
+                              ) : (
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold inline-block ${ev.colorClass.badge}`}
+                                >
+                                  {ev.typeLabel}
+                                </span>
+                              )}
                             </div>
 
                             <h5 className="font-bold text-slate-900 text-xs line-clamp-1">
@@ -1185,14 +1520,28 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                               </p>
                             )}
 
-                            {/* Estimated Return Date */}
-                            {ev.job.estimatedReturnDate && (
-                              <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-mono truncate">
-                                <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                                <span className="truncate font-semibold">
-                                  นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
-                                </span>
+                            {/* Duration / Estimated Return Date */}
+                            {ev.type === 'workPlan' ? (
+                              <div className="space-y-0.5">
+                                {ev.isFinishedSpan ? (
+                                  <div className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    ใช้จริง {ev.actualDaysUsed} วันทำการ • {ev.diffLabel}
+                                  </div>
+                                ) : (
+                                  <div className="text-[9px] font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                    แผน {ev.plannedDaysCount} วันทำการ (นัดส่ง {formatDateDisplay(ev.job.estimatedReturnDate)})
+                                  </div>
+                                )}
                               </div>
+                            ) : (
+                              ev.job.estimatedReturnDate && (
+                                <div className="flex items-center gap-1 text-[9px] text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-mono truncate">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                  <span className="truncate font-semibold">
+                                    นัดส่ง: {formatDateDisplay(ev.job.estimatedReturnDate)}
+                                  </span>
+                                </div>
+                              )
                             )}
 
                             <div className="space-y-0.5 text-[10px] text-slate-500 pt-1 border-t border-slate-100">
@@ -1259,6 +1608,21 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
          ========================================================================= */}
       {calendarView === 'day' && (
         <div className="space-y-4">
+          {/* Weekend Holiday Banner if current viewed day is Saturday or Sunday */}
+          {(currentDate.getDay() === 0 || currentDate.getDay() === 6) && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-900 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-xs">
+              <span className="text-2xl">☕</span>
+              <div>
+                <h4 className="font-bold text-xs sm:text-sm text-rose-900">
+                  {currentDate.getDay() === 0 ? 'วันอาทิตย์' : 'วันเสาร์'} — วันหยุดประจำสัปดาห์ (Non-working day)
+                </h4>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  ตามเกณฑ์แผนงาน Modify จะไม่นับวันเสาร์และวันอาทิตย์เป็นวันทำงาน (Working Days)
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Day Metrics Overview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
@@ -1319,13 +1683,6 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                 ไม่พบงานที่มีวัน Request, ส่งมอบ Engineer, นัดส่งมอบคืน หรือตรวจ QC ในวันที่{' '}
                 {formatDateDisplay(currentISO)}
               </p>
-              <button
-                type="button"
-                onClick={onAddNew}
-                className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-              >
-                + สร้างคำขอ Modify สำหรับวันนี้
-              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1345,6 +1702,13 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                       <div
                         className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${ev.colorClass.badge}`}
                       >
+                        {ev.type === 'workPlan' && (
+                          ev.isFinishedSpan ? (
+                            <CheckCircle2 className="w-6 h-6 text-white" />
+                          ) : (
+                            <Clock className="w-6 h-6 text-white" />
+                          )
+                        )}
                         {ev.type === 'request' && <Clock className="w-6 h-6 text-white" />}
                         {ev.type === 'handover' && <Wrench className="w-6 h-6 text-white" />}
                         {ev.type === 'estimatedReturn' && <Clock className="w-6 h-6 text-white" />}
@@ -1422,6 +1786,30 @@ export const ModifyJobCalendarView: React.FC<ModifyJobCalendarViewProps> = ({
                             <p className="line-clamp-2">{job.modifyDetails}</p>
                           </div>
                         )}
+
+                        {/* Work Plan & Actual Duration Progress */}
+                        {(() => {
+                          const wp = getJobWorkPlanDetails(job);
+                          return (
+                            <div className="mt-2 p-2.5 bg-slate-50/90 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-semibold text-slate-700 text-[11px] flex items-center gap-1">
+                                  <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>แผนงาน: {formatDateDisplay(wp.startDate)} ➔ {wp.isFinished ? `เสร็จจริง ${formatDateDisplay(wp.effectiveEndDate)}` : `นัดส่ง ${formatDateDisplay(wp.plannedEndDate)}`}</span>
+                                </span>
+                                {wp.isFinished ? (
+                                  <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    🟢 ใช้จริง: {wp.actualDays} วัน (แผน {wp.plannedDays} วัน) • {wp.diffLabel}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-blue-100 text-blue-800 border border-blue-200">
+                                    🛠️ แผนงาน: {wp.plannedDays} วัน • {wp.daysRemaining >= 0 ? `เหลืออีก ${wp.daysRemaining} วัน` : `เกินกำหนด ${Math.abs(wp.daysRemaining)} วัน`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
